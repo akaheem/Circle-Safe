@@ -3,14 +3,19 @@
 import { useEffect } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { LayoutDashboard, LogOut, PlusCircle } from "lucide-react";
+import { Compass, Inbox, LayoutDashboard, LogOut, PlusCircle, Shield } from "lucide-react";
 import { useSession, clearSession, getToken } from "@/lib/auth";
-import { logout } from "@/lib/api";
+import { logout, me } from "@/lib/api";
+import { useAsync } from "@/lib/useAsync";
+import VerifyEmailBanner from "@/components/VerifyEmailBanner";
 
 export default function AppLayout({ children }: { children: React.ReactNode }) {
   const { user, ready } = useSession();
   const router = useRouter();
   const pathname = usePathname();
+
+  // The session copy of the role can be stale, so the admin link waits on a fresh read.
+  const account = useAsync(() => (ready && user ? me() : Promise.resolve(null)), [ready, user?.id]);
 
   useEffect(() => {
     if (ready && !user) router.replace("/login");
@@ -34,6 +39,11 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   const navItems = [
     { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
     { href: "/circles/new", label: "New Circle", icon: PlusCircle },
+    { href: "/circles/discover", label: "Discover", icon: Compass },
+    { href: "/requests", label: "Requests", icon: Inbox },
+    ...(account.data?.role === "ADMIN"
+      ? [{ href: "/admin", label: "Admin", icon: Shield }]
+      : []),
   ];
 
   return (
@@ -82,7 +92,10 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
 
       {/* Content */}
       <div className="lg:pl-64">
-        <main className="mx-auto max-w-6xl px-6 py-8 md:px-10">{children}</main>
+        <main className="mx-auto max-w-6xl px-6 py-8 md:px-10">
+          <VerifyEmailBanner className="mb-6" />
+          {children}
+        </main>
       </div>
     </div>
   );

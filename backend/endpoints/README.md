@@ -57,3 +57,20 @@ and nothing else returned one to the recipient. It also backs the payout history
 5. **depends_on variable reuse** — extracted vars (`circle_id`, `cycle`, `amount`, etc.) are
    referenced as bare names in `parameters`, matching the action-chaining docs.
 6. **`broadcast_websocket_message`** — requires `ALLOW_WEBSOCKET_CONNECTIONS=true`.
+
+## 🔎 TWO GAPS FOUND WHILE BUILDING THE SELF-HOSTED RUNTIME (2026-07-25)
+
+Both were found by re-implementing these same queries in `frontend/lib/server/resources.ts`.
+They are fixed there and should be backported here before this backend goes live.
+
+1. **`invite-member` doesn't enforce `max_members`.** The insert only checks that the caller owns a
+   `PENDING` circle, so an owner can invite more people than the circle has seats — and then the
+   payout schedule has more members than cycles. Fix: add a seat count to the `WHERE EXISTS`, e.g.
+   `AND (SELECT COUNT(*) FROM _memberships m2 WHERE m2.circle_id = $2 AND m2.deleted_at IS NULL)
+   < (SELECT max_members FROM _circles WHERE id = $2)`.
+2. **Cached aggregations can leak across membership.** `get-insights`, `get-trust-score` and
+   `get-circle-health` use `cache_key: "..._$PAYLOAD.circle_id"` — keyed on the circle only — while
+   the `EXISTS (… me.user_id = $2)` membership guard sits *inside* the cached query. So the first
+   caller's result can be served from cache to a later non-member caller. Fix: either include the
+   caller in the cache key (`..._$PAYLOAD.circle_id_$PROTECTED.id`, at the cost of hit rate) or
+   split the membership check into a separate uncached actionable that runs first.

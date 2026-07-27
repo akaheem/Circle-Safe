@@ -1,0 +1,15 @@
+# Never commit secrets or local machine state.
+.env
+.env*.local
+.claude/settings.local.json
+
+# Dependencies and build output (also covered by frontend/.gitignore)
+node_modules/
+.next/
+out/
+build/
+
+# OS / editor noise
+.DS_Store
+Thumbs.db
+*.log

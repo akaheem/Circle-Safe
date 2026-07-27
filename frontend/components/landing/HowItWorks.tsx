@@ -4,7 +4,7 @@ const steps = [
   { n: "01", title: "Create a circle", desc: "Set the contribution amount, frequency, size, and currency in a quick guided wizard." },
   { n: "02", title: "Invite & order", desc: "Invite members and drag them into the payout rotation with the visual Rules Builder." },
   { n: "03", title: "Contribute & confirm", desc: "Members record contributions each cycle; the treasurer confirms — all logged to the ledger." },
-  { n: "04", title: "Payout rotates", desc: "The pot goes to the next member automatically, and the cycle advances until everyone is paid." },
+  { n: "04", title: "Payout rotates", desc: "The owner records the payout to whoever holds the next position; the recipient confirms and the cycle advances." },
 ];
 
 export default function HowItWorks() {

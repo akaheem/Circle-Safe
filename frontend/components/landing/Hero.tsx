@@ -1,16 +1,21 @@
 "use client";
 
+import { useMemo } from "react";
 import { motion } from "framer-motion";
 import Lightfall from "@/components/Lightfall";
 
 export default function Hero() {
+  // A new array each render would look like a prop change to Lightfall.
+  const colors = useMemo(() => ["#34E0A1", "#0FA968", "#F5B301"], []);
+
   return (
     <section id="home" className="relative flex min-h-[720px] items-center overflow-hidden bg-ink">
       {/* Recolored Lightfall animated background (Savanna Trust palette) */}
       <Lightfall
-        colors={["#34E0A1", "#0FA968", "#F5B301"]}
+        colors={colors}
         backgroundColor="#07231B"
         streakCount={3}
+        speed={0.18}
       />
       {/* readability gradient over the animation */}
       <div className="pointer-events-none absolute inset-0 z-[1] bg-gradient-to-b from-ink/40 via-transparent to-ink/70" />
@@ -74,7 +79,8 @@ export default function Hero() {
             </span>
           </div>
           <div className="grid grid-cols-2 gap-3">
-            <Tile label="Current Pot" value="₦65,000" accent />
+            {/* Illustrative figures, kept consistent: 7 of 10 members × ₦10,000 = ₦70,000. */}
+            <Tile label="Current Pot" value="₦70,000" accent />
             <Tile label="Members Paid" value="7 / 10" />
             <Tile label="Next Recipient" value="Sarah" />
             <div className="rounded-2xl border border-white/10 bg-white/[0.06] p-4">
@@ -84,6 +90,9 @@ export default function Hero() {
                 <div className="h-full w-[70%] rounded-full bg-gradient-to-r from-primary to-primary-light" />
               </div>
             </div>
+          </div>
+          <div className="mt-4 text-center text-[11px] text-white/40">
+            Example circle — not live data
           </div>
         </motion.div>
       </div>

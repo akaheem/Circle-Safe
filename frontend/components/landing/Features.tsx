@@ -20,7 +20,7 @@ const features = [
   {
     icon: Activity,
     title: "Real-time Dashboard",
-    desc: "Live pot totals, payments, and payout rotation update instantly for every member of the circle.",
+    desc: "Pot totals, payments, and payout rotation push to every member live — Server-Sent Events self-hosted, WebSocket on Sub0.",
   },
 ];
 

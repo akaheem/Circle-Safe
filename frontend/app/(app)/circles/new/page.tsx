@@ -3,10 +3,13 @@
 import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { ArrowLeft, ArrowRight, Check, Coins, ScrollText, Users } from "lucide-react";
+import {
+  ArrowLeft, ArrowRight, CalendarClock, Check, Coins, Globe, Lock, ScrollText, Users,
+} from "lucide-react";
 import { createCircle } from "@/lib/api";
 import { formatMoney } from "@/lib/format";
 import Alert from "@/components/ui/Alert";
+import Countdown from "@/components/Countdown";
 
 const CURRENCIES = ["NGN", "GHS", "KES", "ZAR", "XOF", "USD"];
 
@@ -14,8 +17,28 @@ const STEPS = [
   { title: "Basics", hint: "Name and size", icon: Users },
   { title: "Contribution", hint: "Amount and rhythm", icon: Coins },
   { title: "Rules", hint: "Grace period and late fee", icon: ScrollText },
+  { title: "Start & listing", hint: "When and who can see it", icon: CalendarClock },
   { title: "Review", hint: "Confirm and create", icon: Check },
 ];
+
+/** `datetime-local` speaks local wall-clock time, so format by hand rather than via toISOString(). */
+function toLocalInput(d: Date): string {
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
+
+const defaultStart = () => {
+  const d = new Date(Date.now() + 7 * 86_400_000);
+  d.setMinutes(0, 0, 0);
+  return toLocalInput(d);
+};
+
+const readableStart = (local: string) => {
+  const d = new Date(local);
+  return isNaN(d.getTime())
+    ? "—"
+    : d.toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" });
+};
 
 export default function NewCirclePage() {
   const router = useRouter();
@@ -30,8 +53,15 @@ export default function NewCirclePage() {
   const [currency, setCurrency] = useState("NGN");
   const [graceDays, setGraceDays] = useState(3);
   const [lateFee, setLateFee] = useState(0);
+  const [scheduled, setScheduled] = useState(true);
+  const [startsAt, setStartsAt] = useState(defaultStart);
+  const [visibility, setVisibility] = useState<"PUBLIC" | "PRIVATE">("PUBLIC");
+  const [description, setDescription] = useState("");
 
   const potPerCycle = amount * maxMembers;
+  const startIso = scheduled && !isNaN(new Date(startsAt).getTime())
+    ? new Date(startsAt).toISOString()
+    : null;
 
   function validateStep(): string | null {
     if (step === 0) {
@@ -42,6 +72,14 @@ export default function NewCirclePage() {
     if (step === 2) {
       if (graceDays < 0 || graceDays > 30) return "Grace period must be between 0 and 30 days.";
       if (lateFee < 0) return "Late fee cannot be negative.";
+    }
+    if (step === 3) {
+      if (scheduled) {
+        const when = new Date(startsAt).getTime();
+        if (isNaN(when)) return "Pick a start date and time, or choose to start it manually.";
+        if (when <= Date.now()) return "The start date has to be in the future.";
+      }
+      if (description.length > 500) return "Keep the description to 500 characters or fewer.";
     }
     return null;
   }
@@ -69,6 +107,9 @@ export default function NewCirclePage() {
         max_members: maxMembers,
         currency,
         rules: { grace_period_days: graceDays, late_fee: lateFee },
+        starts_at: startIso,
+        visibility,
+        description: description.trim() || null,
       });
       router.push(`/circles/${circle.id}?tab=rules`);
     } catch (err) {
@@ -84,10 +125,10 @@ export default function NewCirclePage() {
       </Link>
 
       <h1 className="font-heading text-3xl font-bold">Create a circle</h1>
-      <p className="mt-1 text-muted">Four short steps. You can invite members and set the payout order next.</p>
+      <p className="mt-1 text-muted">Five short steps. You can invite members and set the payout order next.</p>
 
       {/* Stepper */}
-      <ol className="mt-8 grid grid-cols-2 gap-3 sm:grid-cols-4">
+      <ol className="mt-8 grid grid-cols-2 gap-3 sm:grid-cols-5">
         {STEPS.map((s, i) => {
           const done = i < step;
           const active = i === step;
@@ -212,6 +253,108 @@ export default function NewCirclePage() {
         )}
 
         {step === 3 && (
+          <div className="space-y-6">
+            <div>
+              <span className="field-label">When should it start?</span>
+              <div className="grid gap-3 sm:grid-cols-2">
+                <button
+                  type="button" onClick={() => setScheduled(true)}
+                  className={`rounded-xl border p-4 text-left transition-colors ${
+                    scheduled ? "border-primary bg-primary/8" : "border-line bg-white hover:border-primary/40"
+                  }`}
+                >
+                  <div className="font-heading font-semibold">On a date I choose</div>
+                  <div className="text-xs text-muted">Starts by itself once the day arrives</div>
+                </button>
+                <button
+                  type="button" onClick={() => setScheduled(false)}
+                  className={`rounded-xl border p-4 text-left transition-colors ${
+                    !scheduled ? "border-primary bg-primary/8" : "border-line bg-white hover:border-primary/40"
+                  }`}
+                >
+                  <div className="font-heading font-semibold">Start it manually later</div>
+                  <div className="text-xs text-muted">You press Start when everyone is in</div>
+                </button>
+              </div>
+
+              {scheduled && (
+                <label className="mt-4 block">
+                  <span className="field-label">Start date and time</span>
+                  <input
+                    type="datetime-local" className="input" value={startsAt}
+                    min={toLocalInput(new Date())}
+                    onChange={(e) => setStartsAt(e.target.value)}
+                  />
+                  <span className="mt-1.5 block text-xs text-muted">
+                    {readableStart(startsAt)}
+                    {startIso && new Date(startIso).getTime() > Date.now() && (
+                      <> · <Countdown at={startIso} /></>
+                    )}
+                  </span>
+                </label>
+              )}
+
+              <Alert tone="info" className="mt-4">
+                {scheduled ? (
+                  <>
+                    Everything between now and then is your invite window: send invitations, and let
+                    people find the circle and ask for a seat. On the day, the circle goes active on its
+                    own as long as at least two members have joined. You can still start it early.
+                  </>
+                ) : (
+                  <>
+                    With no date set, nothing happens until you press Start. Use the wait to invite
+                    people and approve join requests.
+                  </>
+                )}
+              </Alert>
+            </div>
+
+            <div>
+              <span className="field-label">Who can find it?</span>
+              <div className="grid gap-3 sm:grid-cols-2">
+                {([
+                  { key: "PUBLIC" as const, icon: Globe, title: "Public", hint: "Listed so people can request to join" },
+                  { key: "PRIVATE" as const, icon: Lock, title: "Private", hint: "Invite only, hidden from discovery" },
+                ]).map((option) => (
+                  <button
+                    key={option.key} type="button" onClick={() => setVisibility(option.key)}
+                    className={`rounded-xl border p-4 text-left transition-colors ${
+                      visibility === option.key
+                        ? "border-primary bg-primary/8"
+                        : "border-line bg-white hover:border-primary/40"
+                    }`}
+                  >
+                    <div className="flex items-center gap-2 font-heading font-semibold">
+                      <option.icon size={16} className={visibility === option.key ? "text-primary" : "text-muted"} />
+                      {option.title}
+                    </div>
+                    <div className="mt-0.5 text-xs text-muted">{option.hint}</div>
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <label className="block">
+              <span className="field-label">What is this circle saving for? (optional)</span>
+              <textarea
+                rows={3} maxLength={500} className="input" value={description}
+                onChange={(e) => setDescription(e.target.value)}
+                placeholder="e.g. Market traders on Balogun Street pooling weekly stock money."
+              />
+              <span className="mt-1 flex justify-between text-xs text-muted">
+                <span>
+                  {visibility === "PUBLIC"
+                    ? "Shown in discovery, so say who it is for."
+                    : "Only members see this while the circle is private."}
+                </span>
+                <span>{description.length}/500</span>
+              </span>
+            </label>
+          </div>
+        )}
+
+        {step === 4 && (
           <dl className="divide-y divide-line">
             <Row label="Circle name" value={name} />
             <Row label="Members" value={`${maxMembers} (${maxMembers} cycles)`} />
@@ -219,7 +362,23 @@ export default function NewCirclePage() {
             <Row label="Pot per cycle" value={formatMoney(potPerCycle, currency)} />
             <Row label="Grace period" value={`${graceDays} ${graceDays === 1 ? "day" : "days"}`} />
             <Row label="Late fee" value={lateFee ? formatMoney(lateFee, currency) : "None"} />
-            <Row label="Starts as" value="PENDING — invite members, set the payout order, then start" />
+            <Row
+              label="Starts"
+              value={scheduled ? readableStart(startsAt) : "When you press Start"}
+            />
+            <Row
+              label="Visibility"
+              value={visibility === "PUBLIC" ? "Public — listed in discovery" : "Private — invite only"}
+            />
+            <Row label="Description" value={description.trim() || "None"} />
+            <Row
+              label="Starts as"
+              value={
+                scheduled
+                  ? "PENDING — invite members and set the payout order before the start date"
+                  : "PENDING — invite members, set the payout order, then start"
+              }
+            />
           </dl>
         )}
 

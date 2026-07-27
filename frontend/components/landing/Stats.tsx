@@ -3,11 +3,12 @@
 import CountUp from "react-countup";
 import { motion } from "framer-motion";
 
+// Facts about the app that actually runs — count them in lib/server/resources.ts and schema.sql.
 const stats = [
-  { prefix: "₦", value: 12, suffix: "M+", label: "Saved through circles", decimals: 0 },
-  { prefix: "", value: 840, suffix: "+", label: "Active circles", decimals: 0 },
-  { prefix: "", value: 6.2, suffix: "k", label: "Members", decimals: 1 },
-  { prefix: "", value: 100, suffix: "%", label: "Transparent", decimals: 0 },
+  { prefix: "", value: 39, suffix: "", label: "API endpoints in the app", decimals: 0 },
+  { prefix: "", value: 11, suffix: "", label: "Postgres tables behind it", decimals: 0 },
+  { prefix: "", value: 1, suffix: "", label: "Append-only audit log", decimals: 0 },
+  { prefix: "", value: 100, suffix: "%", label: "Auditable history", decimals: 0 },
 ];
 
 export default function Stats() {

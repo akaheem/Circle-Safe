@@ -12,11 +12,11 @@ export default function CTA() {
               Start your circle today
             </h2>
             <p className="relative mx-auto mt-4 max-w-xl text-white/85">
-              Bring transparency and trust to your savings group in minutes. Free to create your
-              first circle.
+              Bring transparency and trust to your savings group in minutes. CircleSafe keeps the
+              record — your group keeps handling the cash.
             </p>
             <div className="relative mt-8 flex justify-center">
-              <a href="#" className="btn bg-white text-primary hover:-translate-y-0.5 hover:bg-white/90">
+              <a href="/register" className="btn bg-white text-primary hover:-translate-y-0.5 hover:bg-white/90">
                 Create a Circle
               </a>
             </div>

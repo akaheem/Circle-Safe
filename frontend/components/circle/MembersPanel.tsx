@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { LogIn, Mail, UserPlus, Users } from "lucide-react";
+import { Check, Copy, LogIn, Mail, UserPlus, Users } from "lucide-react";
 import { inviteMember, joinCircle, listMembers } from "@/lib/api";
 import { useAsync } from "@/lib/useAsync";
 import { useSession } from "@/lib/auth";
@@ -16,28 +16,44 @@ export default function MembersPanel({ circleId, circle, me, version, onChanged 
 
   const [email, setEmail] = useState("");
   const [busy, setBusy] = useState(false);
-  const [notice, setNotice] = useState<string | null>(null);
+  const [sent, setSent] = useState<{ email: string; invite_url?: string } | null>(null);
+  const [copied, setCopied] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
 
   const members = data ?? [];
+  // Present whenever the mail did not actually go out — SMTP unconfigured, delivery failed, or
+  // demo mode, where no request leaves the browser at all. The owner passes the link on by hand.
+  // Absent means it really was delivered, so the "emailed" message below is only shown when true.
+  const inviteUrl = sent?.invite_url;
   const isOwner = me?.role === "OWNER";
   const canInvite = isOwner && circle.status === "PENDING" && members.length < circle.max_members;
   const iAmInvited = me?.status === "INVITED";
 
   async function onInvite(e: React.FormEvent) {
     e.preventDefault();
+    const address = email.trim();
     setBusy(true);
     setActionError(null);
-    setNotice(null);
+    setSent(null);
+    setCopied(false);
     try {
-      await inviteMember({ circle_id: circleId, email: email.trim() });
-      setNotice(`Invited ${email.trim()}. They can accept from their dashboard.`);
+      const invitation = await inviteMember({ circle_id: circleId, email: address });
+      setSent({ email: address, invite_url: invitation.invite_url });
       setEmail("");
       onChanged();
     } catch (err) {
       setActionError(err instanceof Error ? err.message : "Could not send the invite");
     } finally {
       setBusy(false);
+    }
+  }
+
+  async function onCopy(url: string) {
+    try {
+      await navigator.clipboard.writeText(url);
+      setCopied(true);
+    } catch {
+      setActionError("Copying failed — select the link and copy it by hand.");
     }
   }
 
@@ -59,7 +75,34 @@ export default function MembersPanel({ circleId, circle, me, version, onChanged 
   return (
     <div className="space-y-5">
       {actionError && <Alert tone="error">{actionError}</Alert>}
-      {notice && <Alert tone="success">{notice}</Alert>}
+
+      {sent && (
+        <Alert tone="success">
+          {inviteUrl ? (
+            <>
+              <p className="font-semibold">Invitation created for {sent.email}.</p>
+              <p className="mt-1">
+                No mail provider is configured, so send this link to your friend yourself.
+              </p>
+              <div className="mt-3 flex flex-wrap items-center gap-2">
+                <code className="min-w-0 flex-1 break-all rounded-lg bg-white px-3 py-2 text-xs ring-1 ring-primary/20">
+                  {inviteUrl}
+                </code>
+                <button onClick={() => onCopy(inviteUrl)} className="btn-outline btn-sm">
+                  {copied ? <Check size={15} /> : <Copy size={15} />} {copied ? "Copied" : "Copy link"}
+                </button>
+              </div>
+            </>
+          ) : (
+            <>
+              <p className="font-semibold">Invitation emailed to {sent.email}.</p>
+              <p className="mt-1">
+                They have 14 days to accept. You can track or cancel it under Requests.
+              </p>
+            </>
+          )}
+        </Alert>
+      )}
 
       {iAmInvited && (
         <div className="card flex flex-wrap items-center justify-between gap-4">
@@ -77,7 +120,8 @@ export default function MembersPanel({ circleId, circle, me, version, onChanged 
         <form onSubmit={onInvite} className="card">
           <h3 className="font-heading text-lg font-semibold">Invite a member</h3>
           <p className="mb-4 text-sm text-muted">
-            They must already have a CircleSafe account. {circle.max_members - members.length} seat
+            Any email address works — no CircleSafe account needed. They get a link that walks them
+            through signing up and accepting. {circle.max_members - members.length} seat
             {circle.max_members - members.length === 1 ? "" : "s"} left.
           </p>
           <div className="flex flex-wrap gap-3">

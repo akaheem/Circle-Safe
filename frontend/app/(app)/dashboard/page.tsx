@@ -22,7 +22,8 @@ export default function DashboardPage() {
     <div>
       {USE_MOCK && (
         <div className="mb-6 rounded-xl border border-accent/30 bg-accent/10 px-4 py-3 text-sm text-accent-dark">
-          <b>Demo mode</b> — showing sample data. Set <code>NEXT_PUBLIC_API_URL</code> to connect the live Sub0 backend.
+          <b>Demo mode</b> — showing sample data. Set <code>NEXT_PUBLIC_LOCAL_API=true</code> (self-hosted
+          Postgres) or <code>NEXT_PUBLIC_API_URL</code> (live Sub0) to use a real backend.
         </div>
       )}
 

@@ -5,7 +5,7 @@ const points = [
   { icon: Lock, title: "Encrypted & hashed", desc: "Passwords hashed with BCRYPT; all traffic over HTTPS/TLS." },
   { icon: KeyRound, title: "JWT + role access", desc: "Signed tokens and role-based permissions on every action." },
   { icon: FileCheck2, title: "Tamper-evident ledger", desc: "Append-only records — history can never be silently rewritten." },
-  { icon: Gauge, title: "Abuse protection", desc: "Rate limiting and strict input validation on every endpoint." },
+  { icon: Gauge, title: "Abuse protection", desc: "Rate limits on auth, invites and contributions; every endpoint that takes input validates it." },
 ];
 
 export default function Security() {

@@ -1,5 +1,11 @@
 # CircleSafe — Deployment runbook
 
+> **⚠️ This file originally described the LingoQL/Sub0 deployment path (Path A), which is on hold
+> while the hackathon credits issue is unresolved.** The currently deployable runtime (Path B) is
+> the self-hosted PostgreSQL one — see [SELF_HOSTING.md](SELF_HOSTING.md) for that. This file is
+> left intact because Path A still works if credits arrive; the only change is that Step 0 (push
+> a repo) and the `NEXT_PUBLIC_*` warnings below apply to both paths equally.
+
 Everything in this file is the **user's track** (it needs accounts and credentials). Work top to
 bottom; each step says how to know it worked. Where a step depends on LingoQL/Sub0 UI details we
 haven't seen, it's marked **[verify in console]** — the docs index is
@@ -177,13 +183,64 @@ Use two browsers (or a normal + incognito window) so you can act as two members.
 
 ---
 
+## Path B — Deploy the self-hosted runtime (PostgreSQL)
+
+If the LingoQL credits have not arrived, deploy the self-hosted runtime to any platform that can
+run a Node.js process persistently (needed for SSE live updates). This path does not use Sub0
+or LingoQL at all.
+
+### Requirements
+- A **PostgreSQL** database (Neon free tier, Supabase free tier, Railway, or a plain VPS Postgres).
+- A **host** for the Next.js app that keeps one long-lived process alive. Good fits: **Render**
+  (Web Service, not Static), **Railway**, **Fly.io**, or a **VPS** running `next start`.
+  Does NOT work on Vercel's serverless plan (SSE breaks, but the app still loads data).
+
+### Step B1 — Provision the database
+- [ ] Create a free Postgres instance on [Neon](https://neon.tech) or [Supabase](https://supabase.com).
+- [ ] Save the connection string (`postgres://user:password@host:port/dbname?sslmode=require`).
+      **Never commit it** — store in the host's secrets manager.
+
+### Step B2 — Set build-time env vars
+> ⚠️ **CRITICAL** — `NEXT_PUBLIC_*` vars are inlined at **build time**. Setting them after the
+> service has built has no effect. The app will silently serve the in-memory demo. Verify by the
+> absence of the "Demo" badge in the header after deployment.
+
+Set these in the host's dashboard **before** the build:
+```
+NEXT_PUBLIC_LOCAL_API=true
+JWT_SECRET_KEY= <run: node -e "console.log(require('crypto').randomBytes(48).toString('base64url'))">
+JWT_EXPIRES_IN=7d
+```
+That database connection string goes in a secret too:
+```
+DATABASE_URL=postgres://user:password@host:port/dbname?sslmode=require
+```
+
+### Step B3 — Deploy
+- [ ] Push the repo (the first commit needs `git add -A && git commit -m "initial" && git push`).
+- [ ] On the host, create a **Web Service** (not static) pointing at `frontend/`. Set the
+      **build command** to `npm install && npm run build` and the **start command** to `npm start`.
+- [ ] Add the env vars from B2 to the service.
+- [ ] Trigger the build.
+
+### Step B4 — Create the schema
+- [ ] After the first deploy succeeds, connect to the database (e.g. `psql "$DATABASE_URL" -f
+      frontend/lib/server/schema.sql`) or let `db:init` do it: `npm run db:init`.
+- [ ] Verify: `npm run smoke` (from `frontend/` with a `.env.local` containing `DATABASE_URL`).
+
+**Done when:** the deployed URL loads, the header does **not** show "Demo", and you can register
+an account and see it persist across page reloads (if it disappears every reload, the var missed
+the build).
+
+---
+
 ## Rollback / troubleshooting
 
 | Symptom | Likely cause |
 |---|---|
 | Every request 401 | `JWT_SECRET_KEY` changed after tokens were issued — log out and back in |
-| "relation does not exist" | table-name underscore mismatch (Step 3) |
-| UI shows "Demo mode" in production | `NEXT_PUBLIC_API_URL` wasn't set **at build time** — rebuild |
-| Data loads but nothing is live | `ALLOW_WEBSOCKET_CONNECTIONS` unset, or `NEXT_PUBLIC_WS_URL` missing/wrong scheme (`wss://` on HTTPS) |
+| "relation does not exist" | table-name underscore mismatch (Step 3) or schema not applied |
+| UI shows "Demo" badge in production | `NEXT_PUBLIC_*` var not set **at build time** — the app is serving the in-memory fake; set the var and rebuild |
+| Live updates don't arrive (SSE) | host runs multi-instance or serverless; SSE is in-process and only works with a single persistent Node process |
 | Scores look stale for a minute | expected — `get-trust-score`/`get-circle-health`/`get-insights` are cached 60s; `get-dashboard` is not |
-| Numbers render as `NaN` | Postgres returned a numeric as a string and a spot is missing its `Number()` coercion — the panels coerce, but check any new code |
+| Loads fine locally, breaks on deploy | `NEXT_PUBLIC_*` var missed the build because the host didn't rebuild after adding it — redeploy with a fresh build |

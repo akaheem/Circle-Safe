@@ -1,10 +1,12 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { signIn } from "@/lib/api";
+import { MOCK_LOGIN, signIn, USE_MOCK } from "@/lib/api";
 import { setSession } from "@/lib/auth";
+import Alert from "@/components/ui/Alert";
+import DemoModeBanner from "@/components/DemoModeBanner";
 
 export default function LoginPage() {
   const router = useRouter();
@@ -12,6 +14,12 @@ export default function LoginPage() {
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [invite, setInvite] = useState<string | null>(null);
+
+  // Read the token from window, not useSearchParams, so this page still prerenders.
+  useEffect(() => {
+    setInvite(new URLSearchParams(window.location.search).get("invite"));
+  }, []);
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -20,16 +28,17 @@ export default function LoginPage() {
     try {
       const user = await signIn({ email, password });
       setSession(user);
-      router.push("/dashboard");
+      router.push(invite ? `/invite/${encodeURIComponent(invite)}` : "/dashboard");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Login failed");
-    } finally {
       setLoading(false);
     }
   }
 
   return (
     <div>
+      <DemoModeBanner className="mb-6" />
+
       <Link href="/" className="mb-8 flex items-center gap-2.5 font-heading text-xl font-bold lg:hidden">
         <span className="h-7 w-7 rounded-lg bg-gradient-to-br from-primary to-accent" />
         CircleSafe
@@ -38,12 +47,15 @@ export default function LoginPage() {
       <h1 className="font-heading text-3xl font-bold">Welcome back</h1>
       <p className="mt-2 text-muted">Log in to manage your savings circles.</p>
 
+      {invite && (
+        <Alert tone="info" className="mt-5">
+          You have a circle invitation waiting. Log in with the address it was sent to and we&apos;ll
+          take you straight there.
+        </Alert>
+      )}
+
       <form onSubmit={onSubmit} className="mt-8 space-y-5">
-        {error && (
-          <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
-            {error}
-          </div>
-        )}
+        {error && <Alert tone="error">{error}</Alert>}
         <Field label="Email">
           <input
             type="email" required value={email} onChange={(e) => setEmail(e.target.value)}
@@ -59,11 +71,19 @@ export default function LoginPage() {
         <button type="submit" disabled={loading} className="btn-primary w-full disabled:opacity-60">
           {loading ? "Logging in…" : "Log in"}
         </button>
+        {USE_MOCK && (
+          <p className="text-center text-sm text-accent-dark">
+            Demo login: <b>{MOCK_LOGIN.email}</b> / <b>{MOCK_LOGIN.password}</b>
+          </p>
+        )}
       </form>
 
       <p className="mt-6 text-sm text-muted">
         New to CircleSafe?{" "}
-        <Link href="/register" className="font-semibold text-primary hover:underline">
+        <Link
+          href={invite ? `/register?invite=${encodeURIComponent(invite)}` : "/register"}
+          className="font-semibold text-primary hover:underline"
+        >
           Create an account
         </Link>
       </p>

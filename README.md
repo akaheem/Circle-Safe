@@ -6,11 +6,14 @@ CircleSafe is a transparent, append-only system of record for **rotating savings
 *Ajo* / *Esusu* / *Susu* / *Tontine* — the informal circles that move enormous amounts of money
 across West Africa every week with nothing but a notebook and trust.
 
-Built for the **Zero to Query** hackathon: backend on **Sub0**, everything deployed on **LingoQL**.
+Built for the **Zero to Query** hackathon. The backend is [designed for **Sub0**](backend/) as 23
+declarative JSON resources — the running app uses a **self-hosted PostgreSQL runtime** implementing
+the same contract (39 resources over 11 tables). Both speak the same wire format; switching
+between them is two environment variables.
 
-- **Live demo:** _<add LingoQL URL>_
-- **Demo video:** _<add link>_
-- **Frontend repo:** _<add link>_
+- **Live demo:** _to be added after deployment_
+- **Demo video:** _to be added_
+- **Source:** [github.com/akaheem/Circle-Safe](https://github.com/akaheem/Circle-Safe)_
 
 ---
 
@@ -79,9 +82,16 @@ flowchart TB
     SUB0 --- primitives
 ```
 
-**Request path.** The browser POSTs to a Sub0 *resource*; Sub0 validates the payload, verifies the
-JWT, rate-limits by IP, runs one or more chained SQL actionables, writes the audit row, and
-broadcasts a socket message. There is no hand-written server code anywhere in this project.
+**Request path (Sub0).** The browser POSTs to a Sub0 *resource*; Sub0 validates the payload,
+verifies the JWT, rate-limits by IP, runs one or more chained SQL actionables, writes the audit
+row, and broadcasts a socket message. There is no hand-written server code in the canonical design.
+
+**Request path (self-hosted).** The same POST hits `app/api/[resource]/route.ts`, which dispatches
+to the matching handler in `lib/server/resources.ts`. Every handler runs the same SQL, the same
+validations and the same authorization checks — the only difference is the runtime: Node.js route
+handlers instead of the Sub0 platform, Server-Sent Events instead of WebSockets. The mock mode
+(`lib/api.ts` fallback) implements the same contract in memory so the UI is clickable without a
+backend at all.
 
 **Contribution lifecycle.**
 
@@ -108,14 +118,18 @@ member                treasurer/owner            owner              recipient
   │                         │                      │                    │   → RECEIVED
 ```
 
-## 4. Data model (6 tables)
+## 4. Data model
+
+**11 tables** actually run (the 6 core ones below, plus `_email_tokens`, `_invitations`,
+`_join_requests`, `_emails` and `_revoked_tokens` for email verification, invitation lifecycle,
+join-request workflow and JWT revocation). The canonical [Sub0 design](backend/) defines 6.
 
 | Table | Purpose | Notes |
 |---|---|---|
 | `_users` | accounts | `email` unique + indexable; `password` BCRYPT-hashed, never returned |
 | `_circles` | the savings group | `status` PENDING→ACTIVE→COMPLETED, `current_cycle`, `rules` JSON |
 | `_memberships` | who is in a circle | `role` OWNER/TREASURER/MEMBER, `payout_position`, `status` |
-| `_contributions` | money in | `cycle`, `amount`, `status` PENDING/CONFIRMED, `confirmed_by` |
+| `_contributions` | money in | `cycle`, `amount` (NUMERIC, exact decimal), `status` PENDING/CONFIRMED |
 | `_payouts` | money out | `cycle`, `recipient_id`, `status` SCHEDULED/PAID/RECEIVED |
 | `_activity` | **append-only audit log** | INSERT only — never UPDATE, never DELETE |
 
@@ -126,6 +140,12 @@ over `_contributions` and `_memberships`. Nothing to drift, nothing to falsify.
 
 Sub0 is declarative: you define models and endpoints as JSON, and the platform *is* the backend.
 Everything below is a Sub0 primitive, not application code we wrote.
+
+> **Note on the running app.** The table and endpoint counts in this section describe the
+> [canonical Sub0 design](backend/) (6 models, 23 endpoint JSON files). The self-hosted runtime
+> implements the same contract plus invitation lifecycle, join requests, email verification,
+> discovery and an admin console — currently **39 resources over 11 tables**. The additional
+> resources are a superset; nothing in the table is removed or changed.
 
 | Sub0 primitive | Where CircleSafe uses it |
 |---|---|
@@ -167,6 +187,11 @@ Everything below is a Sub0 primitive, not application code we wrote.
 
 See [`DEPLOYMENT.md`](./DEPLOYMENT.md) for the exact runbook.
 
+> **Status note.** The hackathon's LingoQL/Sub0 credits were never issued to us (the credit cut-off
+> turned out to be 21 July 2026 and wasn't announced), so there is no Sub0 instance to point at yet.
+> The backend design in `backend/` is complete and unchanged; §11 covers how the same 23 resources
+> run on ordinary PostgreSQL in the meantime.
+
 ## 7. Security
 
 - Passwords BCRYPT-hashed by Sub0; never present in any `returnables`.
@@ -191,10 +216,14 @@ backend/
   endpoints/         23 Sub0 ABI endpoint files, grouped by domain
     README.md        paste order, conventions, caveats to verify on the live instance
     realtime/        how the WebSocket broadcasts fit together
-frontend/            Next.js 14 app (see frontend/README.md)
+frontend/
+  app/api/           self-hosted runtime: one dispatcher for all 23 resources + an SSE stream
+  lib/server/        schema, handlers, auth, validation, rate limit, cache (see §11)
+  scripts/           db-init + end-to-end smoke test
 frontend-design-reference/   palette exploration + the original Lightfall hero
 PROGRESS.md          full decision log and task tracker
-DEPLOYMENT.md        step-by-step deploy runbook
+DEPLOYMENT.md        step-by-step Sub0 + LingoQL deploy runbook
+SELF_HOSTING.md      running the same 23 resources on plain PostgreSQL
 DEMO_SCRIPT.md       shot list for the demo video
 ```
 
@@ -206,20 +235,48 @@ npm install
 npm run dev          # http://localhost:3000
 ```
 
-With no `NEXT_PUBLIC_API_URL` set, the app runs in **demo mode** against an in-memory mock of
-every Sub0 resource — the whole flow (invite → drag the payout order → start → contribute →
-confirm → payout → confirm receipt) is clickable without a backend. Point it at the real thing by
-setting the two variables in [`frontend/.env.example`](./frontend/.env.example).
+With nothing configured, the app runs in **demo mode** against an in-memory mock of every resource —
+the whole flow (invite → drag the payout order → start → contribute → confirm → payout → confirm
+receipt) is clickable without a backend. To use a real one, set the variables in
+[`frontend/.env.example`](./frontend/.env.example): a Postgres connection for the self-hosted
+runtime (§11), or `NEXT_PUBLIC_API_URL` for a Sub0 instance.
 
 ## 10. Stack
 
-**Frontend:** Next.js 14 (App Router) · TypeScript · Tailwind CSS · Recharts · dnd-kit ·
+**Frontend:** Next.js 16 (App Router) · React 19 · TypeScript · Tailwind CSS · Recharts · dnd-kit ·
 framer-motion · ogl (WebGL hero) · lucide-react
 **Backend:** Sub0 (declarative JSON models + ABI endpoints) — zero hand-written server code
 **Database:** PostgreSQL (managed by LingoQL)
 **Hosting:** LingoQL (frontend + backend + database + TLS)
+**Fallback runtime:** Next.js route handlers + `pg` + `bcryptjs` + `jsonwebtoken` (§11)
 
-## 11. Future work
+## 11. Running without Sub0
+
+Since we have no Sub0 instance, the app also ships a **self-hosted runtime**: the same 23 resources,
+executing the same SQL, against any PostgreSQL. The Sub0 definitions in `backend/` are untouched —
+this is a second executor for one contract, not a rewrite.
+
+```bash
+cd frontend
+export DATABASE_URL="postgres://…"      # any Postgres: Neon / Supabase / Railway free tier
+export JWT_SECRET_KEY="$(node -e 'console.log(require("crypto").randomBytes(48).toString("base64url"))')"
+export NEXT_PUBLIC_LOCAL_API=true
+
+npm run db:init    # apply the schema
+npm run dev        # then, in another terminal:
+npm run smoke      # full lifecycle + authorization tests
+```
+
+Each Sub0 primitive has a direct counterpart — `payload_validation` → `lib/server/validate.ts`,
+`hashables` → bcrypt, `protected` → verified JWT claims, `depends_on` → one transaction,
+`read_from_cache` → a 60s TTL cache, `broadcast_websocket_message` → SSE. The mapping table, the
+deploy steps, and an honest verification status are in [`SELF_HOSTING.md`](./SELF_HOSTING.md).
+
+Building it also surfaced two gaps in the Sub0 definitions (an uncapped `invite-member`, and cached
+aggregations keyed without the caller) — both fixed in the self-hosted runtime and logged in
+`backend/endpoints/README.md` to backport.
+
+## 12. Future work
 
 Deliberately out of scope for this build, in rough priority order:
 
@@ -231,7 +288,7 @@ Deliberately out of scope for this build, in rough priority order:
 5. **Receipt uploads** — Sub0 `UPLOAD` actionables for transfer screenshots as secondary evidence.
 6. **Multi-currency circles** and diaspora contributions.
 
-## 12. Credits
+## 13. Credits
 
 Design language is *inspired by* a Bootstrap landing template (UIdeck "Bliss") but shares no code,
 CSS, assets or fonts with it — the UI is an original rebuild in Next.js + Tailwind with our own
