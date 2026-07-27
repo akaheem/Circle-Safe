@@ -15,6 +15,14 @@ import { validate } from "@/lib/server/validate";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
+/** The origin is echoed back because we cannot know the Vercel URL at build time. */
+function corsHeaders(req: NextRequest): Record<string, string> {
+  const origin = req.headers.get("origin");
+  return origin
+    ? { "Access-Control-Allow-Origin": origin, "Access-Control-Allow-Credentials": "true" }
+    : {};
+}
+
 function clientIp(req: NextRequest): string {
   const forwarded = req.headers.get("x-forwarded-for");
   if (forwarded) return forwarded.split(",")[0].trim();
@@ -31,7 +39,7 @@ export async function POST(
   if (!definition) {
     return NextResponse.json(
       { message: `Unknown resource "${name}"`, available: resourceNames },
-      { status: 404 },
+      { status: 404, headers: corsHeaders(req) },
     );
   }
 
@@ -61,7 +69,9 @@ export async function POST(
     if (definition.auth) {
       const claims = await verifyToken(bearer(req.headers));
       if (!claims) {
-        return NextResponse.json({ message: "Authentication required" }, { status: 401 });
+        return NextResponse.json(
+          { message: "Authentication required" }, { status: 401, headers: corsHeaders(req) },
+        );
       }
       userId = claims.id;
     }
@@ -69,10 +79,12 @@ export async function POST(
     if (definition.spec) validate(payload, definition.spec);
 
     const data = await definition.run({ payload, userId, ip: clientIp(req) });
-    return NextResponse.json(data ?? null);
+    return NextResponse.json(data ?? null, { headers: corsHeaders(req) });
   } catch (err) {
     if (err instanceof ApiError) {
-      return NextResponse.json({ message: err.message }, { status: err.status });
+      return NextResponse.json(
+        { message: err.message }, { status: err.status, headers: corsHeaders(req) },
+      );
     }
     // Never leak SQL or stack traces to the client; log server-side instead.
     console.error(`[api:${name}]`, err);
@@ -80,14 +92,28 @@ export async function POST(
     const configIssue = /DATABASE_URL|JWT_SECRET_KEY|schema\.sql/.test(message);
     return NextResponse.json(
       { message: configIssue ? message : "Something went wrong on the server" },
-      { status: configIssue ? 500 : 500 },
+      { status: 500, headers: corsHeaders(req) },
     );
   }
 }
 
-export async function GET() {
+/**
+ * CORS preflight. The browser sends this before the real POST when the frontend is on Vercel
+ * and the API is on Render (different origins).
+ */
+export async function OPTIONS(req: NextRequest) {
+  const headers = {
+    ...corsHeaders(req),
+    "Access-Control-Allow-Methods": "POST, OPTIONS",
+    "Access-Control-Allow-Headers": "Content-Type, Authorization, x-access-token",
+    "Access-Control-Max-Age": "86400",
+  };
+  return new Response(null, { status: 204, headers });
+}
+
+export async function GET(req: NextRequest) {
   return NextResponse.json(
     { message: "This API accepts POST only.", resources: resourceNames },
-    { status: 405 },
+    { status: 405, headers: corsHeaders(req) },
   );
 }
