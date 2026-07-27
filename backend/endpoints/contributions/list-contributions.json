@@ -1,0 +1,21 @@
+{
+  "id": "circlesafe-list-contributions-01",
+  "resource": "list-contributions",
+  "tokenize": { "type": "JWT", "algorithm": "HS256", "encryption_key": "$ENV.JWT_SECRET_KEY" },
+  "protected": { "provide_as": "Authorization", "extract_claims": ["id"] },
+  "actionables": [
+    {
+      "id": 1,
+      "mode": "QUERY",
+      "payload_validation": [
+        { "field": { "circle_id": { "type": "STRING" } }, "min_length": 1, "max_length": 255 }
+      ],
+      "sql_query": {
+        "query": "SELECT ct.id, ct.user_id, u.name, ct.cycle, ct.amount, ct.status, ct.confirmed_by, ct.created_at FROM _contributions ct JOIN _users u ON u.id = ct.user_id WHERE ct.circle_id = $1 AND ct.deleted_at IS NULL AND EXISTS (SELECT 1 FROM _memberships m WHERE m.circle_id = $1 AND m.user_id = $2) ORDER BY ct.cycle DESC, ct.created_at DESC",
+        "parameters": ["$PAYLOAD.circle_id", "$PROTECTED.id"]
+      },
+      "returnables": ["id", "user_id", "name", "cycle", "amount", "status", "confirmed_by", "created_at"],
+      "main_returnable": true
+    }
+  ]
+}

@@ -1,0 +1,30 @@
+{
+  "id": "circlesafe-start-circle-01",
+  "resource": "start-circle",
+  "tokenize": { "type": "JWT", "algorithm": "HS256", "encryption_key": "$ENV.JWT_SECRET_KEY" },
+  "protected": { "provide_as": "Authorization", "extract_claims": ["id"] },
+  "actionables": [
+    {
+      "id": 1,
+      "mode": "QUERY",
+      "payload_validation": [
+        { "field": { "circle_id": { "type": "STRING" } }, "min_length": 1, "max_length": 255 }
+      ],
+      "sql_query": {
+        "query": "UPDATE _circles SET status = 'ACTIVE', current_cycle = 1, updated_at = $2::timestamptz WHERE id = $1 AND owner_id = $3 AND status = 'PENDING' RETURNING id, status, current_cycle",
+        "parameters": ["$PAYLOAD.circle_id", "$DATETIME", "$PROTECTED.id"]
+      },
+      "returnables": ["id", "status", "current_cycle"],
+      "main_returnable": true,
+      "broadcast_websocket_message": { "broadcast_type": "ALL", "action": "circle_update" }
+    },
+    {
+      "id": 2,
+      "mode": "QUERY",
+      "sql_query": {
+        "query": "INSERT INTO _activity (id, circle_id, actor_id, type, message, created_at) VALUES ($1, $2, $3, 'CIRCLE_STARTED', 'Circle started - cycle 1 begins', $4::timestamptz)",
+        "parameters": ["$GENERATOR.KSUID", "$PAYLOAD.circle_id", "$PROTECTED.id", "$DATETIME"]
+      }
+    }
+  ]
+}

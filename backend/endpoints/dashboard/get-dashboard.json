@@ -1,0 +1,21 @@
+{
+  "id": "circlesafe-get-dashboard-01",
+  "resource": "get-dashboard",
+  "tokenize": { "type": "JWT", "algorithm": "HS256", "encryption_key": "$ENV.JWT_SECRET_KEY" },
+  "protected": { "provide_as": "Authorization", "extract_claims": ["id"] },
+  "actionables": [
+    {
+      "id": 1,
+      "mode": "QUERY",
+      "payload_validation": [
+        { "field": { "circle_id": { "type": "STRING" } }, "min_length": 1, "max_length": 255 }
+      ],
+      "sql_query": {
+        "query": "SELECT c.id, c.name, c.status, c.current_cycle, c.max_members, c.contribution_amount, c.currency, COALESCE((SELECT SUM(ct.amount) FROM _contributions ct WHERE ct.circle_id = c.id AND ct.cycle = c.current_cycle AND ct.status = 'CONFIRMED'), 0) AS pot, (SELECT COUNT(*) FROM _contributions ct WHERE ct.circle_id = c.id AND ct.cycle = c.current_cycle AND ct.status = 'CONFIRMED') AS members_paid, (SELECT COUNT(*) FROM _memberships m WHERE m.circle_id = c.id AND m.status = 'ACTIVE' AND m.deleted_at IS NULL) AS total_members, (SELECT u.name FROM _memberships m JOIN _users u ON u.id = m.user_id WHERE m.circle_id = c.id AND m.payout_position = c.current_cycle LIMIT 1) AS next_recipient, ROUND((GREATEST(c.current_cycle - 1, 0)::numeric / NULLIF(c.max_members, 0)) * 100, 0) AS completion_pct FROM _circles c WHERE c.id = $1 AND c.deleted_at IS NULL AND EXISTS (SELECT 1 FROM _memberships me WHERE me.circle_id = c.id AND me.user_id = $2)",
+        "parameters": ["$PAYLOAD.circle_id", "$PROTECTED.id"]
+      },
+      "returnables": ["id", "name", "status", "current_cycle", "max_members", "contribution_amount", "currency", "pot", "members_paid", "total_members", "next_recipient", "completion_pct"],
+      "main_returnable": true
+    }
+  ]
+}

@@ -1,0 +1,54 @@
+{
+  "id": {
+    "type": "String",
+    "max_length": 255,
+    "primary_key": true
+  },
+  "circle_id": {
+    "type": "String",
+    "max_length": 255,
+    "indexable": true,
+    "foreign_key": {
+      "of": "_circles",
+      "key": "id"
+    }
+  },
+  "user_id": {
+    "type": "String",
+    "max_length": 255,
+    "indexable": true,
+    "foreign_key": {
+      "of": "_users",
+      "key": "id"
+    }
+  },
+  "cycle": {
+    "type": "Number"
+  },
+  "amount": {
+    "type": "Float"
+  },
+  "status": {
+    "type": "String",
+    "max_length": 20
+  },
+  "confirmed_by": {
+    "type": "String",
+    "max_length": 255,
+    "optional": true,
+    "foreign_key": {
+      "of": "_users",
+      "key": "id"
+    }
+  },
+  "created_at": {
+    "type": "DateTime"
+  },
+  "updated_at": {
+    "type": "DateTime"
+  },
+  "deleted_at": {
+    "type": "DateTime",
+    "optional": true
+  }
+}

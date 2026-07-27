@@ -1,0 +1,21 @@
+{
+  "id": "circlesafe-list-members-01",
+  "resource": "list-members",
+  "tokenize": { "type": "JWT", "algorithm": "HS256", "encryption_key": "$ENV.JWT_SECRET_KEY" },
+  "protected": { "provide_as": "Authorization", "extract_claims": ["id"] },
+  "actionables": [
+    {
+      "id": 1,
+      "mode": "QUERY",
+      "payload_validation": [
+        { "field": { "circle_id": { "type": "STRING" } }, "min_length": 1, "max_length": 255 }
+      ],
+      "sql_query": {
+        "query": "SELECT m.id, m.user_id, u.name, u.email, m.role, m.payout_position, m.status FROM _memberships m JOIN _users u ON u.id = m.user_id WHERE m.circle_id = $1 AND m.deleted_at IS NULL AND EXISTS (SELECT 1 FROM _memberships me WHERE me.circle_id = $1 AND me.user_id = $2) ORDER BY m.payout_position ASC, u.name ASC",
+        "parameters": ["$PAYLOAD.circle_id", "$PROTECTED.id"]
+      },
+      "returnables": ["id", "user_id", "name", "email", "role", "payout_position", "status"],
+      "main_returnable": true
+    }
+  ]
+}

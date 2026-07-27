@@ -1,0 +1,59 @@
+{
+  "id": "circlesafe-sign-up-01",
+  "resource": "sign-up",
+  "tokenize": {
+    "type": "JWT",
+    "algorithm": "HS256",
+    "expiration": 86400,
+    "encryption_key": "$ENV.JWT_SECRET_KEY",
+    "custom_claim_fields": ["id", "email"],
+    "property_name": "token"
+  },
+  "rate_limit": {
+    "limit": 5,
+    "identifier": "$HEADER.ip",
+    "expires_after": 60
+  },
+  "actionables": [
+    {
+      "id": 1,
+      "mode": "QUERY",
+      "payload_validation": [
+        {
+          "field": { "name": { "type": "STRING" } },
+          "min_length": 2,
+          "max_length": 255
+        },
+        {
+          "field": { "email": { "type": "EMAIL" } },
+          "max_length": 255
+        },
+        {
+          "field": { "password": { "type": "STRING" } },
+          "min_length": 8,
+          "max_length": 255
+        }
+      ],
+      "hashables": [
+        {
+          "property": "password",
+          "algorithm": "BCRYPT",
+          "options": { "rounds_cost": 12 }
+        }
+      ],
+      "sql_query": {
+        "query": "INSERT INTO _users (id, name, email, password, created_at, updated_at) VALUES ($1, $2, $3, $4, $5::timestamptz, $6::timestamptz) RETURNING id, name, email",
+        "parameters": [
+          "$GENERATOR.KSUID",
+          "name",
+          "email",
+          "password",
+          "$DATETIME",
+          "$DATETIME"
+        ],
+        "unique": ["email"]
+      },
+      "returnables": ["id", "name", "email"]
+    }
+  ]
+}

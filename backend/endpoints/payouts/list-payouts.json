@@ -1,0 +1,21 @@
+{
+  "id": "circlesafe-list-payouts-01",
+  "resource": "list-payouts",
+  "tokenize": { "type": "JWT", "algorithm": "HS256", "encryption_key": "$ENV.JWT_SECRET_KEY" },
+  "protected": { "provide_as": "Authorization", "extract_claims": ["id"] },
+  "actionables": [
+    {
+      "id": 1,
+      "mode": "QUERY",
+      "payload_validation": [
+        { "field": { "circle_id": { "type": "STRING" } }, "min_length": 1, "max_length": 255 }
+      ],
+      "sql_query": {
+        "query": "SELECT p.id, p.cycle, p.recipient_id, u.name AS recipient_name, p.amount, p.status, p.recorded_by, p.created_at FROM _payouts p JOIN _users u ON u.id = p.recipient_id WHERE p.circle_id = $1 AND EXISTS (SELECT 1 FROM _memberships m WHERE m.circle_id = $1 AND m.user_id = $2) ORDER BY p.cycle DESC",
+        "parameters": ["$PAYLOAD.circle_id", "$PROTECTED.id"]
+      },
+      "returnables": ["id", "cycle", "recipient_id", "recipient_name", "amount", "status", "recorded_by", "created_at"],
+      "main_returnable": true
+    }
+  ]
+}

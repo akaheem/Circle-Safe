@@ -1,0 +1,18 @@
+{
+  "id": "circlesafe-list-my-circles-01",
+  "resource": "list-my-circles",
+  "tokenize": { "type": "JWT", "algorithm": "HS256", "encryption_key": "$ENV.JWT_SECRET_KEY" },
+  "protected": { "provide_as": "Authorization", "extract_claims": ["id"] },
+  "actionables": [
+    {
+      "id": 1,
+      "mode": "QUERY",
+      "sql_query": {
+        "query": "SELECT c.id, c.name, c.contribution_amount, c.frequency, c.max_members, c.currency, c.status, c.current_cycle, c.created_at FROM _circles c JOIN _memberships m ON m.circle_id = c.id WHERE m.user_id = $1 AND m.deleted_at IS NULL AND c.deleted_at IS NULL ORDER BY c.created_at DESC",
+        "parameters": ["$PROTECTED.id"]
+      },
+      "returnables": ["id", "name", "contribution_amount", "frequency", "max_members", "currency", "status", "current_cycle", "created_at"],
+      "main_returnable": true
+    }
+  ]
+}

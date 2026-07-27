@@ -1,0 +1,24 @@
+{
+  "id": "circlesafe-get-trust-score-01",
+  "resource": "get-trust-score",
+  "tokenize": { "type": "JWT", "algorithm": "HS256", "encryption_key": "$ENV.JWT_SECRET_KEY" },
+  "protected": { "provide_as": "Authorization", "extract_claims": ["id"] },
+  "actionables": [
+    {
+      "id": 1,
+      "mode": "QUERY",
+      "payload_validation": [
+        { "field": { "circle_id": { "type": "STRING" } }, "min_length": 1, "max_length": 255 }
+      ],
+      "sql_query": {
+        "query": "SELECT m.user_id, u.name, COALESCE(SUM(CASE WHEN ct.status = 'CONFIRMED' THEN ct.amount ELSE 0 END), 0) AS total_contributed, COUNT(ct.id) FILTER (WHERE ct.status = 'CONFIRMED') AS confirmed_count, COUNT(ct.id) FILTER (WHERE ct.status = 'PENDING') AS pending_count, CASE WHEN GREATEST(c.current_cycle - 1, 0) = 0 THEN 100 ELSE ROUND((COUNT(ct.id) FILTER (WHERE ct.status = 'CONFIRMED')::numeric / GREATEST(c.current_cycle - 1, 1)) * 100, 0) END AS reliability_pct FROM _memberships m JOIN _users u ON u.id = m.user_id JOIN _circles c ON c.id = m.circle_id LEFT JOIN _contributions ct ON ct.circle_id = m.circle_id AND ct.user_id = m.user_id WHERE m.circle_id = $1 AND m.status = 'ACTIVE' AND EXISTS (SELECT 1 FROM _memberships me WHERE me.circle_id = $1 AND me.user_id = $2) GROUP BY m.user_id, u.name, c.current_cycle ORDER BY reliability_pct DESC",
+        "parameters": ["$PAYLOAD.circle_id", "$PROTECTED.id"]
+      },
+      "read_from_cache": true,
+      "cache_key": "trust_score_$PAYLOAD.circle_id",
+      "duration": 60,
+      "returnables": ["user_id", "name", "total_contributed", "confirmed_count", "pending_count", "reliability_pct"],
+      "main_returnable": true
+    }
+  ]
+}

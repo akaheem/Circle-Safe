@@ -1,0 +1,30 @@
+{
+  "id": "circlesafe-join-circle-01",
+  "resource": "join-circle",
+  "tokenize": { "type": "JWT", "algorithm": "HS256", "encryption_key": "$ENV.JWT_SECRET_KEY" },
+  "protected": { "provide_as": "Authorization", "extract_claims": ["id"] },
+  "actionables": [
+    {
+      "id": 1,
+      "mode": "QUERY",
+      "payload_validation": [
+        { "field": { "circle_id": { "type": "STRING" } }, "min_length": 1, "max_length": 255 }
+      ],
+      "sql_query": {
+        "query": "UPDATE _memberships SET status = 'ACTIVE', updated_at = $3::timestamptz WHERE circle_id = $1 AND user_id = $2 AND status = 'INVITED' RETURNING id, circle_id, user_id, status",
+        "parameters": ["$PAYLOAD.circle_id", "$PROTECTED.id", "$DATETIME"]
+      },
+      "returnables": ["id", "circle_id", "user_id", "status"],
+      "main_returnable": true,
+      "broadcast_websocket_message": { "broadcast_type": "ALL", "action": "circle_update" }
+    },
+    {
+      "id": 2,
+      "mode": "QUERY",
+      "sql_query": {
+        "query": "INSERT INTO _activity (id, circle_id, actor_id, type, message, created_at) VALUES ($1, $2, $3, 'MEMBER_JOINED', 'A member joined the circle', $4::timestamptz)",
+        "parameters": ["$GENERATOR.KSUID", "$PAYLOAD.circle_id", "$PROTECTED.id", "$DATETIME"]
+      }
+    }
+  ]
+}

@@ -1,0 +1,24 @@
+{
+  "id": "circlesafe-get-insights-01",
+  "resource": "get-insights",
+  "tokenize": { "type": "JWT", "algorithm": "HS256", "encryption_key": "$ENV.JWT_SECRET_KEY" },
+  "protected": { "provide_as": "Authorization", "extract_claims": ["id"] },
+  "actionables": [
+    {
+      "id": 1,
+      "mode": "QUERY",
+      "payload_validation": [
+        { "field": { "circle_id": { "type": "STRING" } }, "min_length": 1, "max_length": 255 }
+      ],
+      "sql_query": {
+        "query": "SELECT (SELECT u.name FROM _contributions ct JOIN _users u ON u.id = ct.user_id WHERE ct.circle_id = $1 AND ct.status = 'CONFIRMED' GROUP BY u.name ORDER BY COUNT(*) DESC LIMIT 1) AS most_reliable_member, (SELECT COALESCE(SUM(amount), 0) FROM _contributions WHERE circle_id = $1 AND status = 'CONFIRMED') AS total_savings, (SELECT COUNT(*) FROM _contributions WHERE circle_id = $1 AND status = 'CONFIRMED') AS total_confirmed, (SELECT u.name FROM _memberships m JOIN _users u ON u.id = m.user_id JOIN _circles c ON c.id = m.circle_id WHERE m.circle_id = $1 AND m.payout_position = c.current_cycle LIMIT 1) AS next_payout_member, (SELECT ROUND(AVG(cnt), 1) FROM (SELECT COUNT(*) AS cnt FROM _contributions WHERE circle_id = $1 AND status = 'CONFIRMED' GROUP BY cycle) s) AS avg_confirmed_per_cycle WHERE EXISTS (SELECT 1 FROM _memberships me WHERE me.circle_id = $1 AND me.user_id = $2)",
+        "parameters": ["$PAYLOAD.circle_id", "$PROTECTED.id"]
+      },
+      "read_from_cache": true,
+      "cache_key": "insights_$PAYLOAD.circle_id",
+      "duration": 60,
+      "returnables": ["most_reliable_member", "total_savings", "total_confirmed", "next_payout_member", "avg_confirmed_per_cycle"],
+      "main_returnable": true
+    }
+  ]
+}

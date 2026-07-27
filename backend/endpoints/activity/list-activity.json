@@ -1,0 +1,21 @@
+{
+  "id": "circlesafe-list-activity-01",
+  "resource": "list-activity",
+  "tokenize": { "type": "JWT", "algorithm": "HS256", "encryption_key": "$ENV.JWT_SECRET_KEY" },
+  "protected": { "provide_as": "Authorization", "extract_claims": ["id"] },
+  "actionables": [
+    {
+      "id": 1,
+      "mode": "QUERY",
+      "payload_validation": [
+        { "field": { "circle_id": { "type": "STRING" } }, "min_length": 1, "max_length": 255 }
+      ],
+      "sql_query": {
+        "query": "SELECT a.id, a.actor_id, u.name AS actor_name, a.type, a.message, a.metadata, a.created_at FROM _activity a LEFT JOIN _users u ON u.id = a.actor_id WHERE a.circle_id = $1 AND EXISTS (SELECT 1 FROM _memberships m WHERE m.circle_id = $1 AND m.user_id = $2) ORDER BY a.created_at DESC LIMIT 100",
+        "parameters": ["$PAYLOAD.circle_id", "$PROTECTED.id"]
+      },
+      "returnables": ["id", "actor_id", "actor_name", "type", "message", "metadata", "created_at"],
+      "main_returnable": true
+    }
+  ]
+}

@@ -1,0 +1,41 @@
+{
+  "id": "circlesafe-invite-member-01",
+  "resource": "invite-member",
+  "tokenize": { "type": "JWT", "algorithm": "HS256", "encryption_key": "$ENV.JWT_SECRET_KEY" },
+  "protected": { "provide_as": "Authorization", "extract_claims": ["id"] },
+  "rate_limit": { "limit": 30, "identifier": "$HEADER.ip", "expires_after": 60 },
+  "actionables": [
+    {
+      "id": 1,
+      "mode": "QUERY",
+      "payload_validation": [
+        { "field": { "circle_id": { "type": "STRING" } }, "min_length": 1, "max_length": 255 },
+        { "field": { "email": { "type": "EMAIL" } }, "max_length": 255 }
+      ],
+      "sql_query": {
+        "query": "SELECT id FROM _users WHERE email = $1 AND deleted_at IS NULL",
+        "parameters": ["$PAYLOAD.email"]
+      },
+      "returnables": ["id"]
+    },
+    {
+      "id": 2,
+      "mode": "QUERY",
+      "depends_on": [ { "resource_id": "self", "action_ids": [1], "extract_response_for": [ { "extract": "id", "for": "invitee_id" } ] } ],
+      "sql_query": {
+        "query": "INSERT INTO _memberships (id, circle_id, user_id, role, payout_position, status, created_at, updated_at) SELECT $1, $2, $3, 'MEMBER', 0, 'INVITED', $4::timestamptz, $4::timestamptz WHERE EXISTS (SELECT 1 FROM _circles WHERE id = $2 AND owner_id = $5 AND status = 'PENDING') RETURNING id, circle_id, user_id, status",
+        "parameters": ["$GENERATOR.KSUID", "$PAYLOAD.circle_id", "invitee_id", "$DATETIME", "$PROTECTED.id"]
+      },
+      "returnables": ["id", "circle_id", "user_id", "status"],
+      "main_returnable": true
+    },
+    {
+      "id": 3,
+      "mode": "QUERY",
+      "sql_query": {
+        "query": "INSERT INTO _activity (id, circle_id, actor_id, type, message, created_at) VALUES ($1, $2, $3, 'MEMBER_INVITED', 'Member invited: ' || $4, $5::timestamptz)",
+        "parameters": ["$GENERATOR.KSUID", "$PAYLOAD.circle_id", "$PROTECTED.id", "$PAYLOAD.email", "$DATETIME"]
+      }
+    }
+  ]
+}

@@ -1,0 +1,46 @@
+{
+  "id": {
+    "type": "String",
+    "max_length": 255,
+    "primary_key": true
+  },
+  "circle_id": {
+    "type": "String",
+    "max_length": 255,
+    "indexable": true,
+    "foreign_key": {
+      "of": "_circles",
+      "key": "id"
+    }
+  },
+  "user_id": {
+    "type": "String",
+    "max_length": 255,
+    "indexable": true,
+    "foreign_key": {
+      "of": "_users",
+      "key": "id"
+    }
+  },
+  "role": {
+    "type": "String",
+    "max_length": 20
+  },
+  "payout_position": {
+    "type": "Number"
+  },
+  "status": {
+    "type": "String",
+    "max_length": 20
+  },
+  "created_at": {
+    "type": "DateTime"
+  },
+  "updated_at": {
+    "type": "DateTime"
+  },
+  "deleted_at": {
+    "type": "DateTime",
+    "optional": true
+  }
+}

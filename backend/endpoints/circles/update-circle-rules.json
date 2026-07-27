@@ -1,0 +1,23 @@
+{
+  "id": "circlesafe-update-circle-rules-01",
+  "resource": "update-circle-rules",
+  "tokenize": { "type": "JWT", "algorithm": "HS256", "encryption_key": "$ENV.JWT_SECRET_KEY" },
+  "protected": { "provide_as": "Authorization", "extract_claims": ["id"] },
+  "actionables": [
+    {
+      "id": 1,
+      "mode": "QUERY",
+      "payload_validation": [
+        { "field": { "circle_id": { "type": "STRING" } }, "min_length": 1, "max_length": 255 },
+        { "field": { "frequency": { "type": "STRING" } }, "min_length": 4, "max_length": 20 },
+        { "field": { "contribution_amount": { "type": "NUMBER" } } }
+      ],
+      "sql_query": {
+        "query": "UPDATE _circles SET frequency = $2, contribution_amount = $3::float8, rules = jsonb_build_object('grace_period_days', $4::int, 'late_fee', $5::float8), updated_at = $6::timestamptz WHERE id = $1 AND owner_id = $7 AND status = 'PENDING' RETURNING id, frequency, contribution_amount, rules",
+        "parameters": ["$PAYLOAD.circle_id", "$PAYLOAD.frequency", "$PAYLOAD.contribution_amount", "$PAYLOAD.rules.grace_period_days", "$PAYLOAD.rules.late_fee", "$DATETIME", "$PROTECTED.id"]
+      },
+      "returnables": ["id", "frequency", "contribution_amount", "rules"],
+      "main_returnable": true
+    }
+  ]
+}

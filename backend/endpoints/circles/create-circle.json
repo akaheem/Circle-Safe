@@ -1,0 +1,44 @@
+{
+  "id": "circlesafe-create-circle-01",
+  "resource": "create-circle",
+  "tokenize": { "type": "JWT", "algorithm": "HS256", "encryption_key": "$ENV.JWT_SECRET_KEY" },
+  "protected": { "provide_as": "Authorization", "extract_claims": ["id"] },
+  "rate_limit": { "limit": 20, "identifier": "$HEADER.ip", "expires_after": 60 },
+  "actionables": [
+    {
+      "id": 1,
+      "mode": "QUERY",
+      "payload_validation": [
+        { "field": { "name": { "type": "STRING" } }, "min_length": 2, "max_length": 255 },
+        { "field": { "contribution_amount": { "type": "NUMBER" } } },
+        { "field": { "frequency": { "type": "STRING" } }, "min_length": 4, "max_length": 20 },
+        { "field": { "max_members": { "type": "NUMBER" } } },
+        { "field": { "currency": { "type": "STRING" } }, "min_length": 1, "max_length": 10 }
+      ],
+      "sql_query": {
+        "query": "INSERT INTO _circles (id, name, owner_id, contribution_amount, frequency, max_members, currency, status, current_cycle, rules, created_at, updated_at) VALUES ($1, $2, $3, $4::float8, $5, $6::int, $7, 'PENDING', 0, jsonb_build_object('grace_period_days', $8::int, 'late_fee', $9::float8), $10::timestamptz, $10::timestamptz) RETURNING id, name, status",
+        "parameters": ["$GENERATOR.KSUID", "$PAYLOAD.name", "$PROTECTED.id", "$PAYLOAD.contribution_amount", "$PAYLOAD.frequency", "$PAYLOAD.max_members", "$PAYLOAD.currency", "$PAYLOAD.rules.grace_period_days", "$PAYLOAD.rules.late_fee", "$DATETIME"]
+      },
+      "returnables": ["id", "name", "status"],
+      "main_returnable": true
+    },
+    {
+      "id": 2,
+      "mode": "QUERY",
+      "depends_on": [ { "resource_id": "self", "action_ids": [1], "extract_response_for": [ { "extract": "id", "for": "circle_id" } ] } ],
+      "sql_query": {
+        "query": "INSERT INTO _memberships (id, circle_id, user_id, role, payout_position, status, created_at, updated_at) VALUES ($1, $2, $3, 'OWNER', 1, 'ACTIVE', $4::timestamptz, $4::timestamptz)",
+        "parameters": ["$GENERATOR.KSUID", "circle_id", "$PROTECTED.id", "$DATETIME"]
+      }
+    },
+    {
+      "id": 3,
+      "mode": "QUERY",
+      "depends_on": [ { "resource_id": "self", "action_ids": [1], "extract_response_for": [ { "extract": "id", "for": "circle_id" } ] } ],
+      "sql_query": {
+        "query": "INSERT INTO _activity (id, circle_id, actor_id, type, message, created_at) VALUES ($1, $2, $3, 'CIRCLE_CREATED', 'Circle created', $4::timestamptz)",
+        "parameters": ["$GENERATOR.KSUID", "circle_id", "$PROTECTED.id", "$DATETIME"]
+      }
+    }
+  ]
+}

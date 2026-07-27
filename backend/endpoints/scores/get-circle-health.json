@@ -1,0 +1,24 @@
+{
+  "id": "circlesafe-get-circle-health-01",
+  "resource": "get-circle-health",
+  "tokenize": { "type": "JWT", "algorithm": "HS256", "encryption_key": "$ENV.JWT_SECRET_KEY" },
+  "protected": { "provide_as": "Authorization", "extract_claims": ["id"] },
+  "actionables": [
+    {
+      "id": 1,
+      "mode": "QUERY",
+      "payload_validation": [
+        { "field": { "circle_id": { "type": "STRING" } }, "min_length": 1, "max_length": 255 }
+      ],
+      "sql_query": {
+        "query": "WITH base AS (SELECT c.id, c.name, c.status, c.current_cycle, c.max_members, (SELECT COUNT(*) FROM _memberships m WHERE m.circle_id = c.id AND m.status = 'ACTIVE') AS active_members, (SELECT COUNT(*) FROM _contributions ct WHERE ct.circle_id = c.id AND ct.status = 'CONFIRMED') AS confirmed_contributions, (SELECT COUNT(*) FROM _contributions ct WHERE ct.circle_id = c.id AND ct.status = 'PENDING') AS pending_contributions, (SELECT COUNT(*) FROM _payouts p WHERE p.circle_id = c.id AND p.status = 'RECEIVED') AS payouts_received FROM _circles c WHERE c.id = $1 AND EXISTS (SELECT 1 FROM _memberships me WHERE me.circle_id = c.id AND me.user_id = $2)) SELECT id, name, status, current_cycle, max_members, active_members, confirmed_contributions, pending_contributions, payouts_received, ROUND(LEAST(100, (confirmed_contributions::numeric / NULLIF(active_members * GREATEST(current_cycle - 1, 1), 0)) * 100), 0) AS health_pct FROM base",
+        "parameters": ["$PAYLOAD.circle_id", "$PROTECTED.id"]
+      },
+      "read_from_cache": true,
+      "cache_key": "circle_health_$PAYLOAD.circle_id",
+      "duration": 60,
+      "returnables": ["id", "name", "status", "current_cycle", "max_members", "active_members", "confirmed_contributions", "pending_contributions", "payouts_received", "health_pct"],
+      "main_returnable": true
+    }
+  ]
+}

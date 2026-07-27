@@ -1,0 +1,48 @@
+{
+  "id": "circlesafe-record-payout-01",
+  "resource": "record-payout",
+  "tokenize": { "type": "JWT", "algorithm": "HS256", "encryption_key": "$ENV.JWT_SECRET_KEY" },
+  "protected": { "provide_as": "Authorization", "extract_claims": ["id"] },
+  "actionables": [
+    {
+      "id": 1,
+      "mode": "QUERY",
+      "payload_validation": [
+        { "field": { "circle_id": { "type": "STRING" } }, "min_length": 1, "max_length": 255 }
+      ],
+      "sql_query": {
+        "query": "SELECT m.user_id AS recipient_id, c.current_cycle AS cycle, COALESCE((SELECT SUM(ct.amount) FROM _contributions ct WHERE ct.circle_id = c.id AND ct.cycle = c.current_cycle AND ct.status = 'CONFIRMED'), 0) AS amount FROM _circles c JOIN _memberships m ON m.circle_id = c.id AND m.payout_position = c.current_cycle WHERE c.id = $1 AND c.owner_id = $2 AND c.status = 'ACTIVE'",
+        "parameters": ["$PAYLOAD.circle_id", "$PROTECTED.id"]
+      },
+      "returnables": ["recipient_id", "cycle", "amount"]
+    },
+    {
+      "id": 2,
+      "mode": "QUERY",
+      "depends_on": [ { "resource_id": "self", "action_ids": [1], "extract_response_for": [ { "extract": "recipient_id", "for": "recipient_id" }, { "extract": "cycle", "for": "cycle" }, { "extract": "amount", "for": "amount" } ] } ],
+      "sql_query": {
+        "query": "INSERT INTO _payouts (id, circle_id, cycle, recipient_id, amount, status, recorded_by, created_at, updated_at) VALUES ($1, $2, $3::int, $4, $5::float8, 'PAID', $6, $7::timestamptz, $7::timestamptz) RETURNING id, recipient_id, amount, cycle, status",
+        "parameters": ["$GENERATOR.KSUID", "$PAYLOAD.circle_id", "cycle", "recipient_id", "amount", "$PROTECTED.id", "$DATETIME"]
+      },
+      "returnables": ["id", "recipient_id", "amount", "cycle", "status"],
+      "main_returnable": true,
+      "broadcast_websocket_message": { "broadcast_type": "ALL", "action": "circle_update" }
+    },
+    {
+      "id": 3,
+      "mode": "QUERY",
+      "sql_query": {
+        "query": "UPDATE _circles SET current_cycle = current_cycle + 1, status = CASE WHEN current_cycle + 1 > max_members THEN 'COMPLETED' ELSE 'ACTIVE' END, updated_at = $2::timestamptz WHERE id = $1 RETURNING current_cycle, status",
+        "parameters": ["$PAYLOAD.circle_id", "$DATETIME"]
+      }
+    },
+    {
+      "id": 4,
+      "mode": "QUERY",
+      "sql_query": {
+        "query": "INSERT INTO _activity (id, circle_id, actor_id, type, message, created_at) VALUES ($1, $2, $3, 'PAYOUT_RECORDED', 'Payout recorded for this cycle', $4::timestamptz)",
+        "parameters": ["$GENERATOR.KSUID", "$PAYLOAD.circle_id", "$PROTECTED.id", "$DATETIME"]
+      }
+    }
+  ]
+}
