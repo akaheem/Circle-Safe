@@ -14,7 +14,7 @@ export default function AdminUsersPage() {
   return (
     <AdminGuard
       title="All users"
-      subtitle="Who has signed up, whether they verified their WhatsApp number, and how many circles they are in."
+      subtitle="Who has signed up, their accounts, and how many circles they are in."
     >
       <UsersTable />
     </AdminGuard>
@@ -125,9 +125,8 @@ function UsersTable() {
       )}
 
       <p className="text-xs text-muted">
-        Admin rights come from the ADMIN_EMAILS setting, applied when the address signs up. Unverified
-        users can still sign in, but starting a circle and joining one are blocked while WhatsApp
-        verification is enforced.
+        Admin rights come from the ADMIN_EMAILS setting, applied when the address signs up.
+        The phone number shown is optional and was previously used for WhatsApp verification.
       </p>
     </div>
   );

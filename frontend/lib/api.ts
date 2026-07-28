@@ -56,7 +56,7 @@ async function call<T>(resource: string, payload: Record<string, unknown> = {}):
 }
 
 /* ------------------------------- Auth ------------------------------- */
-export const signUp = (p: { name: string; email: string; password: string; phone?: string }) =>
+export const signUp = (p: { name: string; email: string; password: string }) =>
   call<User>("sign-up", p);
 export const signIn = (p: { email: string; password: string }) =>
   call<User>("sign-in", p);
@@ -65,12 +65,6 @@ export const googleSignIn = (credential: string) =>
 export const logout = (token: string) => call<unknown>("logout", { tokens: [token] });
 /** The signed-in user, including verification state and platform role. */
 export const me = () => call<User>("me");
-
-/* ---------------------------- Phone OTP ----------------------------- */
-export const sendPhoneOtp = (phone: string) =>
-  call<{ sent: boolean; message: string }>("send-phone-otp", { phone });
-export const verifyPhoneOtp = (p: { phone: string; otp: string }) =>
-  call<{ verified: boolean; phone: string }>("verify-phone-otp", p);
 
 /* ------------------------------ Circles ----------------------------- */
 export const createCircle = (p: Partial<Circle>) => call<Circle>("create-circle", p);
@@ -444,27 +438,8 @@ async function mock<T>(resource: string, payload: Record<string, unknown>): Prom
       db.passwords[email] = "google_oauth_mock";
       return { ...user, token: "mock.jwt.token" } as T;
     }
-    case "send-phone-otp": {
-      const phone = String(payload.phone ?? "");
-      const user = currentUser();
-      // Update the user's phone in the mock DB.
-      user.phone = phone;
-      // In mock mode, just auto-verify after a short delay.
-      return { sent: true, message: "OTP sent to your WhatsApp (demo mode)" } as T;
-    }
-    case "verify-phone-otp": {
-      const user = currentUser();
-      user.phone_verified_at = now();
-      return { verified: true, phone: String(payload.phone ?? "") } as T;
-    }
-
     case "create-circle": {
       const owner = currentUser();
-      if (!owner.phone_verified_at && owner.role !== "ADMIN") {
-        throw new Error(
-          "Verify your WhatsApp number first — go to your account settings and confirm your phone number",
-        );
-      }
       const rules = (payload.rules as Circle["rules"]) ?? {};
       const circle: Circle = {
         id: nextId("c"), name: payload.name as string, owner_id: owner.id,
@@ -591,11 +566,6 @@ async function mock<T>(resource: string, payload: Record<string, unknown>): Prom
 
     case "join-circle": {
       const user = currentUser();
-      if (!user.phone_verified_at && user.role !== "ADMIN") {
-        throw new Error(
-          "Verify your WhatsApp number first — go to your account settings and confirm your phone number",
-        );
-      }
       const members = (db.members[cid] ??= []);
       const m = members.find((x) => x.user_id === user.id && x.status === "INVITED");
       if (!m) throw new Error("You have no pending invite to this circle");
@@ -721,11 +691,6 @@ async function mock<T>(resource: string, payload: Record<string, unknown>): Prom
     case "request-to-join": {
       const circle = circleOf(cid);
       const user = currentUser();
-      if (!user.phone_verified_at && user.role !== "ADMIN") {
-        throw new Error(
-          "Verify your WhatsApp number first — go to your account settings and confirm your phone number",
-        );
-      }
       const request: JoinRequest = {
         id: nextId("j"), circle_id: cid, circle_name: circle.name, user_id: user.id,
         name: user.name, email: user.email, message: (payload.message as string) || null,
@@ -833,12 +798,6 @@ async function mock<T>(resource: string, payload: Record<string, unknown>): Prom
       }
 
       const accepted = payload.action === "ACCEPT";
-      if (accepted && !user.phone_verified_at && user.role !== "ADMIN") {
-        // Mock also enforces phone verification for circle joining.
-        throw new Error(
-          "Verify your WhatsApp number first — go to your account settings and confirm your phone number",
-        );
-      }
       invitation.status = accepted ? "ACCEPTED" : "DECLINED";
       invitation.responded_at = now();
       if (accepted) {
