@@ -1,12 +1,31 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { MOCK_LOGIN, signIn, USE_MOCK } from "@/lib/api";
+import { MOCK_LOGIN, googleSignIn, signIn, USE_MOCK } from "@/lib/api";
 import { setSession } from "@/lib/auth";
 import Alert from "@/components/ui/Alert";
 import DemoModeBanner from "@/components/DemoModeBanner";
+
+declare global {
+  interface Window {
+    google?: {
+      accounts: {
+        id: {
+          initialize: (config: {
+            client_id: string;
+            callback: (response: { credential: string }) => void;
+          }) => void;
+          renderButton: (
+            element: HTMLElement,
+            options: { theme: string; size: string; width?: string },
+          ) => void;
+        };
+      };
+    };
+  }
+}
 
 export default function LoginPage() {
   const router = useRouter();
@@ -14,12 +33,61 @@ export default function LoginPage() {
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [googleLoading, setGoogleLoading] = useState(false);
   const [invite, setInvite] = useState<string | null>(null);
+  const googleBtnRef = useRef<HTMLDivElement>(null);
 
   // Read the token from window, not useSearchParams, so this page still prerenders.
   useEffect(() => {
     setInvite(new URLSearchParams(window.location.search).get("invite"));
   }, []);
+
+  // Initialize Google Sign-In button.
+  useEffect(() => {
+    if (USE_MOCK) return; // No Google in demo mode
+    const clientId = process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID ?? "";
+    if (!clientId || !googleBtnRef.current) return;
+
+    // Load the GIS library if not already loaded.
+    if (!window.google) {
+      const script = document.createElement("script");
+      script.src = "https://accounts.google.com/gsi/client";
+      script.async = true;
+      script.defer = true;
+      script.onload = () => initGoogleButton();
+      document.body.appendChild(script);
+    } else {
+      initGoogleButton();
+    }
+
+    function initGoogleButton() {
+      if (!window.google || !googleBtnRef.current) return;
+      window.google.accounts.id.initialize({
+        client_id: clientId,
+        callback: async (response) => {
+          if (!response.credential) {
+            setError("Google sign-in failed — no credential received");
+            return;
+          }
+          setGoogleLoading(true);
+          setError(null);
+          try {
+            const user = await googleSignIn(response.credential);
+            setSession(user);
+            router.push(invite ? `/invite/${encodeURIComponent(invite)}` : "/dashboard");
+          } catch (err) {
+            setError(err instanceof Error ? err.message : "Google sign-in failed");
+            setGoogleLoading(false);
+          }
+        },
+      });
+      window.google.accounts.id.renderButton(googleBtnRef.current, {
+        theme: "outline",
+        size: "large",
+        width: "400",
+      });
+    }
+  }, [USE_MOCK, invite, router]);
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -77,6 +145,22 @@ export default function LoginPage() {
           </p>
         )}
       </form>
+
+      {!USE_MOCK && process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID && (
+        <div className="mt-6">
+          <div className="relative my-6">
+            <div className="absolute inset-0 flex items-center">
+              <div className="w-full border-t border-line" />
+            </div>
+            <div className="relative flex justify-center text-xs uppercase">
+              <span className="bg-white px-2 text-muted">Or continue with</span>
+            </div>
+          </div>
+          <div ref={googleBtnRef} className="flex justify-center">
+            {googleLoading && <p className="text-sm text-muted">Signing in with Google…</p>}
+          </div>
+        </div>
+      )}
 
       <p className="mt-6 text-sm text-muted">
         New to CircleSafe?{" "}

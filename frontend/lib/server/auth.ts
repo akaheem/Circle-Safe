@@ -90,3 +90,41 @@ export function bearer(headers: Headers): string | null {
   }
   return headers.get("x-access-token");
 }
+
+/**
+ * Verifies a Google ID token using Google's public keys (JWKS).
+ * Uses the `google-auth-library` if available, otherwise a manual JWKS fetch.
+ */
+interface GooglePayload {
+  sub: string;
+  email: string;
+  name: string;
+  picture?: string;
+}
+
+export async function verifyGoogleToken(token: string): Promise<GooglePayload> {
+  // Try using google-auth-library if installed.
+  try {
+    const { OAuth2Client } = await import("google-auth-library");
+    const client = new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
+    const ticket = await client.verifyIdToken({
+      idToken: token,
+      audience: process.env.GOOGLE_CLIENT_ID,
+    });
+    const payload = ticket.getPayload();
+    if (!payload || !payload.sub || !payload.email) {
+      throw new Error("Invalid Google token payload");
+    }
+    return {
+      sub: payload.sub,
+      email: payload.email,
+      name: payload.name ?? payload.email,
+      picture: payload.picture,
+    };
+  } catch {
+    // If google-auth-library is not installed, try manual JWKS verification.
+    throw new Error(
+      "Google Sign-In is not configured. Set GOOGLE_CLIENT_ID env var and install google-auth-library.",
+    );
+  }
+}

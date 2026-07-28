@@ -19,6 +19,7 @@
     "@dnd-kit/utilities": "^3.2.2",
     "bcryptjs": "^3.0.3",
     "framer-motion": "^12.42.2",
+    "google-auth-library": "^10.9.1",
     "jsonwebtoken": "^9.0.3",
     "lucide-react": "^0.427.0",
     "next": "^16.2.12",

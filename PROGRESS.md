@@ -20,42 +20,17 @@
   user's click-test findings) DONE 2026-07-26** — accounts, invitations by email, join requests,
   discovery, scheduled starts and an admin console were built, and the runtime honesty problems
   they exposed were fixed. Submission docs DONE (README + diagram + deploy runbook + demo script).
-- **Last updated:** 2026-07-26
+- **Last updated:** 2026-07-28
 
 > ### ⚠️ READ THIS FIRST — the single most important fact about this project
 > There are **three runtimes** behind one client seam (`frontend/lib/api.ts`), and **`mock` is the
 > default**. With no `frontend/.env.local`, `npm run dev` gives you an **in-memory fake backend**,
 > not the real one. Nearly every bug the user reported on 2026-07-26 was actually "I was clicking
-> the mock." The mock has since been made honest (it now rejects bad logins, scopes reads to your
-> own circles, and no longer claims to send email), **but it is still a fake**. To exercise the
-> real thing: fill in `DATABASE_URL` in `frontend/.env.local` and uncomment `NEXT_PUBLIC_LOCAL_API`.
-> Check the header badge — it reads **Demo** in mock mode and **Live** in local/sub0 mode.
-- **⛔ WORK PAUSED — EXTERNAL BLOCKER (see section 12):** the LingoQL/Sub0 **$20 credits never
-  arrived**. Credits had an **unannounced cut-off of 21 July 2026**; we found out after it passed,
-  so the request went in late. The user (and many other participants) have asked the organizers to
-  issue credits anyway. **No credits ⇒ no Postgres, no Sub0 project, no deploy, no live URL** —
-  every remaining task depends on that one thing.
-- **PATH B IS BUILT (2026-07-25).** Rather than idle while waiting on the organizers, we built the
-  self-hosted runtime: the same 23 resources executing the same SQL against any PostgreSQL, via
-  Next.js route handlers. `backend/` is untouched and still canonical. See `SELF_HOSTING.md`.
-- **PATH B VERIFIED (2026-07-26).** Ran against a real Neon Postgres: schema applied, **smoke test
-  61/61 on the first run**, SSE live updates confirmed. The self-hosted runtime works.
-  ⚠️ The Neon connection string was pasted into a chat session — **rotate that password.**
-- **UI CLICK-TESTED BY THE USER (2026-07-26)** — this was the "next action" above, and it found
-  real problems. All 7 are now addressed; see section 13 for the finding-by-finding record.
-- **Next action:** ① paste your Postgres URL into `frontend/.env.local` and uncomment
-  `NEXT_PUBLIC_LOCAL_API=true`, then `npm run db:init` and re-run `npm run smoke` (the schema grew
-  from 7 tables to 11, so the DB **must** be re-initialised). ② Click through **in local mode** —
-  the mock is no longer a valid stand-in for judging whether a feature works. ③ Deploy on
-  Render/Railway/Fly (needs a persistent Node process for SSE). Path A is unchanged if credits
-  ever arrive (section 11).
-- **Nothing is stuck on us.** The app is demoable today with zero backend:
-  `cd frontend && npm install && npm run dev` → localhost:3000 (demo mode, and now an honest one).
-- **Built so far:** `backend/` = 6 models + 23 Sub0 endpoint files (the canonical *design*).
-  The **running** app = **39 resources over 11 Postgres tables**, 17 routes, 8 circle panels,
-  2 charts, UI primitives, a live-update hook, and a stateful in-memory mock.
-  ⚠️ **`backend/` has drifted** — it does not describe what now runs. See section 14.
-  Accounts/DB/Sub0 still NOT set up.
+> the mock." The mock has since been made honest, **but it is still a fake**. Check the header
+> badge — it reads **Demo** in mock mode and **Live** in local/sub0 mode.
+- **STATUS** (2026-07-28): Auth system overhauled. Email verification replaced with WhatsApp OTP
+  verification. Google Sign-In added. `tsc --noEmit` and `next build` clean; 13 routes.
+  See session log for full detail.
 
 ### DECISIONS (resolved)
 1. **Database:** ✅ **PostgreSQL** (confirmed by user 2026-07-24).
@@ -537,6 +512,30 @@ Key pages (append `.md`):
   path. `package.json` got an `engines` field. Build and typecheck clean. ⚠️ `npm run smoke` still
   unrun (needs a live DB URL). The remaining work (security review, hosting-fit confirmation,
   correctness audit) was blocked by the API usage limit and should be re-run once the limit resets.
+- 2026-07-27 — **DEPLOY DAY.** Two confirmed deploy blockers fixed: money columns changed from
+  DOUBLE PRECISION to NUMERIC(14,2) (3 schema columns + PG type parser + 7 SQL cast sites + 2
+  SUM casts), and LICENSE.txt (MIT) added. README & deploy docs corrected for the self-hosted
+  runtime. memberListScope() bug fixed (was defined but never called — invitees leaked the full
+  member list). JWT expiry made configurable (accepts "never"). Deployed: Render
+  (circlesafe-api.onrender.com) serving the API, Vercel (circle-safe.vercel.app) serving the
+  frontend. CORS added to app/api/[resource]/route.ts and app/api/events/route.ts for the
+  cross-origin setup. SSE cross-origin fallback added to useLive.ts. db:init run against Neon,
+  all 11 tables created. npm run smoke → 141 passed, 0 failed. CORS preflight verified via curl
+  (returns 204 with correct headers). Sign-up returns 500 on Render (likely env difference vs
+  local — top of tomorrow's list). Typecheck and build clean across all changes.
+- 2026-07-28 — **AUTH OVERHAUL: WhatsApp OTP + Google Sign-In.** Replaced email verification
+  with WhatsApp OTP verification (always enforced, no SMTP gating). Added Google Sign-In
+  (OAuth 2.0 via google-auth-library + Google Identity Services frontend SDK). Phone number
+  unique constraint enforced at DB level (one WhatsApp per account). Users go directly to
+  dashboard after signup (no "check your email" screen). Created `VerifyPhoneBanner` (handles
+  phone input, OTP send, OTP verify in one component) replacing `VerifyEmailBanner`. Removed
+  `verify/[token]` page, `verify-email` and `resend-verification` resources. Updated all
+  verification gates: `create-circle`, `join-circle`, `respond-invitation`, `request-to-join`
+  check `phone_verified_at`. Mock backend updated with same gates. New env vars:
+  `GOOGLE_CLIENT_ID`, `NEXT_PUBLIC_GOOGLE_CLIENT_ID`, `WHATSAPP_API_URL`, `WHATSAPP_API_KEY`.
+  Schema additions: `phone_verified_at`, `google_id` on `_users`; `_phone_tokens` table;
+  unique indexes on `phone` and `google_id`. Dependencies added: `google-auth-library`
+  (17 packages). `tsc --noEmit` clean, `next build` clean (13 routes).
 
 ---
 

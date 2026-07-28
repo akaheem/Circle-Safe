@@ -2,24 +2,21 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { MailCheck } from "lucide-react";
+import { useRouter } from "next/navigation";
 import { signUp } from "@/lib/api";
 import { setSession } from "@/lib/auth";
 import Alert from "@/components/ui/Alert";
 import DemoModeBanner from "@/components/DemoModeBanner";
-import type { User } from "@/lib/types";
-
-/** `verify_url` is returned only when no mail provider is configured. */
-type SignUpResult = User & { verify_url?: string };
 
 export default function RegisterPage() {
+  const router = useRouter();
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
+  const [phone, setPhone] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [invite, setInvite] = useState<string | null>(null);
-  const [created, setCreated] = useState<SignUpResult | null>(null);
 
   // Read the token from window, not useSearchParams, so this page still prerenders.
   useEffect(() => {
@@ -33,51 +30,22 @@ export default function RegisterPage() {
       setError("Password must be at least 8 characters.");
       return;
     }
+    // Phone is optional at signup — they can add it later for verification.
+    const cleanPhone = phone.trim() || undefined;
+    if (cleanPhone && !cleanPhone.startsWith("+")) {
+      setError("Phone number must include the country code, e.g. +234...");
+      return;
+    }
     setLoading(true);
     try {
-      const user = (await signUp({ name, email, password })) as SignUpResult;
+      const user = await signUp({ name, email, password, phone: cleanPhone });
       setSession(user);
-      setCreated(user);
+      router.push(invite ? `/invite/${encodeURIComponent(invite)}` : "/dashboard");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Sign up failed");
     } finally {
       setLoading(false);
     }
-  }
-
-  if (created) {
-    return (
-      <div>
-        <DemoModeBanner className="mb-6" />
-        <Brand />
-
-        <span className="mb-5 grid h-12 w-12 place-items-center rounded-2xl bg-primary/10 text-primary">
-          <MailCheck size={22} />
-        </span>
-        <h1 className="font-heading text-3xl font-bold">Check your email</h1>
-        <p className="mt-2 text-muted">
-          Your account is ready. We sent a confirmation link to{" "}
-          <b className="break-all text-body">{created.email}</b> — open it to confirm the address.
-          Creating and joining circles needs a confirmed address. The link lasts 24 hours.
-        </p>
-
-        {created.verify_url && (
-          <Alert tone="info" className="mt-5">
-            No mail provider is configured on this deployment, so use your link directly:{" "}
-            <a href={created.verify_url} className="break-all font-semibold underline">
-              {created.verify_url}
-            </a>
-          </Alert>
-        )}
-
-        <Link
-          href={invite ? `/invite/${encodeURIComponent(invite)}` : "/dashboard"}
-          className="btn-primary mt-8 w-full"
-        >
-          {invite ? "Continue to your invitation" : "Go to my dashboard"}
-        </Link>
-      </div>
-    );
   }
 
   return (
@@ -107,6 +75,12 @@ export default function RegisterPage() {
           <input
             type="email" required value={email} onChange={(e) => setEmail(e.target.value)}
             placeholder="you@example.com" className="input" autoComplete="email"
+          />
+        </Field>
+        <Field label="WhatsApp number (optional — add it to verify your account)">
+          <input
+            type="tel" value={phone} onChange={(e) => setPhone(e.target.value)}
+            placeholder="+2348012345678" className="input" autoComplete="tel"
           />
         </Field>
         <Field label="Password">

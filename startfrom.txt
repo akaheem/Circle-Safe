@@ -1,0 +1,7 @@
+ Render logs → circlesafe-api → Logs tab → look for the error stack trace from the sign-up 500. That will tell us what's
+  missing.
+
+  
+Repo, env vars, DB, and both deployments are set. One error to fix, then it's fully live.
+
+app password smpt_pass = lwkj rzjf fbwl gnwg

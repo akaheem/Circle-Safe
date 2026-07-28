@@ -56,16 +56,21 @@ async function call<T>(resource: string, payload: Record<string, unknown> = {}):
 }
 
 /* ------------------------------- Auth ------------------------------- */
-export const signUp = (p: { name: string; email: string; password: string }) =>
+export const signUp = (p: { name: string; email: string; password: string; phone?: string }) =>
   call<User>("sign-up", p);
 export const signIn = (p: { email: string; password: string }) =>
   call<User>("sign-in", p);
+export const googleSignIn = (credential: string) =>
+  call<User>("google-sign-in", { credential });
 export const logout = (token: string) => call<unknown>("logout", { tokens: [token] });
 /** The signed-in user, including verification state and platform role. */
 export const me = () => call<User>("me");
-export const verifyEmail = (token: string) =>
-  call<{ verified: boolean; email: string }>("verify-email", { token });
-export const resendVerification = () => call<{ sent: boolean }>("resend-verification");
+
+/* ---------------------------- Phone OTP ----------------------------- */
+export const sendPhoneOtp = (phone: string) =>
+  call<{ sent: boolean; message: string }>("send-phone-otp", { phone });
+export const verifyPhoneOtp = (p: { phone: string; otp: string }) =>
+  call<{ verified: boolean; phone: string }>("verify-phone-otp", p);
 
 /* ------------------------------ Circles ----------------------------- */
 export const createCircle = (p: Partial<Circle>) => call<Circle>("create-circle", p);
@@ -162,6 +167,7 @@ export const MOCK_LOGIN = { email: "amara@example.com", password: DEMO_PASSWORD 
 const MOCK_ME: User = {
   id: MOCK_USER_ID, name: "Amara Okafor", email: "amara@example.com",
   email_verified_at: "2026-05-01T09:00:00Z", role: "ADMIN",
+  phone: "+2348012345677", phone_verified_at: "2026-05-01T09:00:00Z",
 };
 
 const inDays = (days: number) => new Date(Date.now() + days * 86_400_000).toISOString();
@@ -200,11 +206,11 @@ const db = {
   ] as Circle[],
 
   users: [
-    { ...MOCK_ME, created_at: "2026-04-20T09:00:00Z" },
-    { id: "u2", name: "John Mensah", email: "john@example.com", role: "USER", email_verified_at: "2026-05-02T09:00:00Z", created_at: "2026-05-02T09:00:00Z" },
-    { id: "u3", name: "Sarah Bello", email: "sarah@example.com", role: "USER", email_verified_at: "2026-05-03T09:00:00Z", created_at: "2026-05-03T09:00:00Z" },
-    { id: "u4", name: "David Nwosu", email: "david@example.com", role: "USER", email_verified_at: null, created_at: "2026-05-04T09:00:00Z" },
-    { id: "u9", name: "Ngozi Eze", email: "ngozi@example.com", role: "USER", email_verified_at: "2026-06-01T09:00:00Z", created_at: "2026-06-01T09:00:00Z" },
+    { ...MOCK_ME, phone: null, phone_verified_at: null, created_at: "2026-04-20T09:00:00Z" },
+    { id: "u2", name: "John Mensah", email: "john@example.com", role: "USER", email_verified_at: "2026-05-02T09:00:00Z", phone: "+2348012345678", phone_verified_at: "2026-05-02T09:00:00Z", created_at: "2026-05-02T09:00:00Z" },
+    { id: "u3", name: "Sarah Bello", email: "sarah@example.com", role: "USER", email_verified_at: "2026-05-03T09:00:00Z", phone: "+2348012345679", phone_verified_at: "2026-05-03T09:00:00Z", created_at: "2026-05-03T09:00:00Z" },
+    { id: "u4", name: "David Nwosu", email: "david@example.com", role: "USER", email_verified_at: null, phone: null, phone_verified_at: null, created_at: "2026-05-04T09:00:00Z" },
+    { id: "u9", name: "Ngozi Eze", email: "ngozi@example.com", role: "USER", email_verified_at: "2026-06-01T09:00:00Z", phone: "+2348012345680", phone_verified_at: "2026-06-01T09:00:00Z", created_at: "2026-06-01T09:00:00Z" },
   ] as (User & { created_at: string })[],
 
   /**
@@ -319,7 +325,7 @@ function currentUser(): User {
     (u) => u.id === session.id || u.email.toLowerCase() === session.email.toLowerCase(),
   );
   if (known) return known;
-  const restored = { ...session, role: "USER" as const, created_at: now() };
+  const restored = { ...session, phone: session.phone ?? null, phone_verified_at: session.phone_verified_at ?? null, role: "USER" as const, created_at: now() };
   db.users.push(restored);
   return restored;
 }
@@ -403,10 +409,11 @@ async function mock<T>(resource: string, payload: Record<string, unknown>): Prom
       if (db.users.some((u) => u.email.toLowerCase() === email)) {
         throw new Error("An account with that email already exists");
       }
+      const phone = (payload.phone as string) || null;
       // A new account is a plain USER: only the seeded persona has the admin role.
       const user = {
-        id: nextId("u"), name: (payload.name as string) || "Demo User", email,
-        email_verified_at: null, role: "USER" as const, created_at: now(),
+        id: nextId("u"), name: (payload.name as string) || "Demo User", email, phone,
+        email_verified_at: null, phone_verified_at: null, role: "USER" as const, created_at: now(),
       };
       db.users.push(user);
       db.passwords[email] = String(payload.password ?? "");
@@ -425,14 +432,40 @@ async function mock<T>(resource: string, payload: Record<string, unknown>): Prom
       return { ok: true } as T;
     case "me":
       return currentUser() as T;
-    case "verify-email":
-      return { verified: true, email: currentUser().email } as T;
-    case "resend-verification":
-      return { sent: true } as T;
+    case "google-sign-in": {
+      // In mock mode, simulate Google Sign-In with a fake Google account.
+      const email = `google_${nextId("g")}@example.com`;
+      const user = {
+        id: nextId("u"), name: "Google User", email,
+        phone: null, email_verified_at: null, phone_verified_at: null,
+        role: "USER" as const, created_at: now(),
+      };
+      db.users.push(user);
+      db.passwords[email] = "google_oauth_mock";
+      return { ...user, token: "mock.jwt.token" } as T;
+    }
+    case "send-phone-otp": {
+      const phone = String(payload.phone ?? "");
+      const user = currentUser();
+      // Update the user's phone in the mock DB.
+      user.phone = phone;
+      // In mock mode, just auto-verify after a short delay.
+      return { sent: true, message: "OTP sent to your WhatsApp (demo mode)" } as T;
+    }
+    case "verify-phone-otp": {
+      const user = currentUser();
+      user.phone_verified_at = now();
+      return { verified: true, phone: String(payload.phone ?? "") } as T;
+    }
 
     case "create-circle": {
-      const rules = (payload.rules as Circle["rules"]) ?? {};
       const owner = currentUser();
+      if (!owner.phone_verified_at && owner.role !== "ADMIN") {
+        throw new Error(
+          "Verify your WhatsApp number first — go to your account settings and confirm your phone number",
+        );
+      }
+      const rules = (payload.rules as Circle["rules"]) ?? {};
       const circle: Circle = {
         id: nextId("c"), name: payload.name as string, owner_id: owner.id,
         contribution_amount: Number(payload.contribution_amount) || 0,
@@ -558,6 +591,11 @@ async function mock<T>(resource: string, payload: Record<string, unknown>): Prom
 
     case "join-circle": {
       const user = currentUser();
+      if (!user.phone_verified_at && user.role !== "ADMIN") {
+        throw new Error(
+          "Verify your WhatsApp number first — go to your account settings and confirm your phone number",
+        );
+      }
       const members = (db.members[cid] ??= []);
       const m = members.find((x) => x.user_id === user.id && x.status === "INVITED");
       if (!m) throw new Error("You have no pending invite to this circle");
@@ -683,6 +721,11 @@ async function mock<T>(resource: string, payload: Record<string, unknown>): Prom
     case "request-to-join": {
       const circle = circleOf(cid);
       const user = currentUser();
+      if (!user.phone_verified_at && user.role !== "ADMIN") {
+        throw new Error(
+          "Verify your WhatsApp number first — go to your account settings and confirm your phone number",
+        );
+      }
       const request: JoinRequest = {
         id: nextId("j"), circle_id: cid, circle_name: circle.name, user_id: user.id,
         name: user.name, email: user.email, message: (payload.message as string) || null,
@@ -790,6 +833,12 @@ async function mock<T>(resource: string, payload: Record<string, unknown>): Prom
       }
 
       const accepted = payload.action === "ACCEPT";
+      if (accepted && !user.phone_verified_at && user.role !== "ADMIN") {
+        // Mock also enforces phone verification for circle joining.
+        throw new Error(
+          "Verify your WhatsApp number first — go to your account settings and confirm your phone number",
+        );
+      }
       invitation.status = accepted ? "ACCEPTED" : "DECLINED";
       invitation.responded_at = now();
       if (accepted) {
@@ -826,7 +875,7 @@ async function mock<T>(resource: string, payload: Record<string, unknown>): Prom
       const contributions = Object.values(db.contributions).flat();
       return {
         users: db.users.length,
-        verified_users: db.users.filter((u) => u.email_verified_at).length,
+        verified_users: db.users.filter((u) => u.phone_verified_at).length,
         circles: db.circles.length,
         active_circles: db.circles.filter((c) => c.status === "ACTIVE").length,
         completed_circles: db.circles.filter((c) => c.status === "COMPLETED").length,
@@ -861,8 +910,9 @@ async function mock<T>(resource: string, payload: Record<string, unknown>): Prom
     case "admin-list-users":
       assertAdmin();
       return db.users.map((u) => ({
-        id: u.id, name: u.name, email: u.email, role: u.role ?? "USER",
-        email_verified_at: u.email_verified_at ?? null,
+        id: u.id, name: u.name, email: u.email, phone: u.phone ?? null,
+        role: u.role ?? "USER",
+        phone_verified_at: u.phone_verified_at ?? null,
         circles_count: Object.values(db.members).filter((list) =>
           list.some((m) => m.user_id === u.id),
         ).length,

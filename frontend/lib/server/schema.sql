@@ -138,6 +138,28 @@ CREATE TABLE IF NOT EXISTS _email_tokens (
 CREATE UNIQUE INDEX IF NOT EXISTS _email_tokens_hash_key ON _email_tokens (token_hash);
 CREATE INDEX IF NOT EXISTS _email_tokens_user_idx ON _email_tokens (user_id, type);
 
+/* =====================================================================
+ * v3 — WhatsApp OTP verification + Google Sign-In
+ * ===================================================================== */
+
+ALTER TABLE _users ADD COLUMN IF NOT EXISTS phone_verified_at TIMESTAMPTZ;
+ALTER TABLE _users ADD COLUMN IF NOT EXISTS google_id         VARCHAR(255);
+-- One WhatsApp number per account.
+CREATE UNIQUE INDEX IF NOT EXISTS _users_phone_key ON _users (phone) WHERE phone IS NOT NULL AND phone != '';
+CREATE UNIQUE INDEX IF NOT EXISTS _users_google_id_key ON _users (google_id) WHERE google_id IS NOT NULL AND google_id != '';
+
+-- Single-use OTP tokens for phone/WhatsApp verification.
+CREATE TABLE IF NOT EXISTS _phone_tokens (
+  id         VARCHAR(255) PRIMARY KEY,
+  user_id    VARCHAR(255) NOT NULL REFERENCES _users (id),
+  phone      VARCHAR(30)  NOT NULL,
+  otp_hash   VARCHAR(64)  NOT NULL,
+  expires_at TIMESTAMPTZ  NOT NULL,
+  used_at    TIMESTAMPTZ,
+  created_at TIMESTAMPTZ  NOT NULL
+);
+CREATE INDEX IF NOT EXISTS _phone_tokens_user_idx ON _phone_tokens (user_id);
+
 -- Invitations addressed to an EMAIL, so you can invite someone who has no account yet.
 -- (_memberships still models people who are actually in the circle.)
 CREATE TABLE IF NOT EXISTS _invitations (

@@ -14,7 +14,7 @@ export default function AdminUsersPage() {
   return (
     <AdminGuard
       title="All users"
-      subtitle="Who has signed up, whether they confirmed their address, and how many circles they are in."
+      subtitle="Who has signed up, whether they verified their WhatsApp number, and how many circles they are in."
     >
       <UsersTable />
     </AdminGuard>
@@ -30,7 +30,7 @@ function UsersTable() {
     return (data ?? []).filter((u) => !q || `${u.name} ${u.email}`.toLowerCase().includes(q));
   }, [data, term]);
 
-  const unverified = (data ?? []).filter((u) => !u.email_verified_at).length;
+  const unverified = (data ?? []).filter((u) => !u.phone_verified_at).length;
 
   if (error) return <Alert tone="error">{error}</Alert>;
 
@@ -84,7 +84,7 @@ function UsersTable() {
                 <th className="px-5 py-3 font-semibold">Name</th>
                 <th className="px-5 py-3 font-semibold">Email</th>
                 <th className="px-5 py-3 font-semibold">Role</th>
-                <th className="px-5 py-3 font-semibold">Email confirmed</th>
+                <th className="px-5 py-3 font-semibold">WhatsApp verified</th>
                 <th className="px-5 py-3 text-right font-semibold">Circles</th>
                 <th className="px-5 py-3 font-semibold">Joined</th>
               </tr>
@@ -104,9 +104,9 @@ function UsersTable() {
                     )}
                   </td>
                   <td className="px-5 py-3.5">
-                    {u.email_verified_at ? (
+                    {u.phone_verified_at ? (
                       <span
-                        title={formatDate(u.email_verified_at)}
+                        title={formatDate(u.phone_verified_at)}
                         className="inline-flex items-center gap-1.5 text-xs font-semibold text-primary"
                       >
                         <BadgeCheck size={16} /> Verified
@@ -126,7 +126,7 @@ function UsersTable() {
 
       <p className="text-xs text-muted">
         Admin rights come from the ADMIN_EMAILS setting, applied when the address signs up. Unverified
-        users can still sign in, but starting a circle and joining one are blocked while email
+        users can still sign in, but starting a circle and joining one are blocked while WhatsApp
         verification is enforced.
       </p>
     </div>

@@ -11,7 +11,6 @@ import { clearSession, getToken, useSession } from "@/lib/auth";
 import { formatDate, formatMoney } from "@/lib/format";
 import Alert from "@/components/ui/Alert";
 import Badge from "@/components/ui/Badge";
-import VerifyEmailBanner from "@/components/VerifyEmailBanner";
 import type { Invitation } from "@/lib/types";
 
 export default function InvitePage() {
@@ -75,8 +74,6 @@ export default function InvitePage() {
 
   return (
     <div className="space-y-5">
-      <VerifyEmailBanner />
-
       <div className="card">
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div>
