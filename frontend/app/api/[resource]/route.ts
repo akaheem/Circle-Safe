@@ -86,12 +86,12 @@ export async function POST(
         { message: err.message }, { status: err.status, headers: corsHeaders(req) },
       );
     }
-    // Never leak SQL or stack traces to the client; log server-side instead.
+    // Log server-side for debugging.
     console.error(`[api:${name}]`, err);
-    const message = err instanceof Error ? err.message : "Unexpected server error";
-    const configIssue = /DATABASE_URL|JWT_SECRET_KEY|schema\.sql/.test(message);
+    const msg = err instanceof Error ? err.message : "Unexpected server error";
+    // Return the actual error so you can diagnose config issues in the browser console.
     return NextResponse.json(
-      { message: configIssue ? message : "Something went wrong on the server" },
+      { message: msg },
       { status: 500, headers: corsHeaders(req) },
     );
   }
