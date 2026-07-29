@@ -137,7 +137,7 @@ CREATE TABLE IF NOT EXISTS _email_tokens (
 CREATE UNIQUE INDEX IF NOT EXISTS _email_tokens_hash_key ON _email_tokens (token_hash);
 CREATE INDEX IF NOT EXISTS _email_tokens_user_idx ON _email_tokens (user_id, type);
 
-/* =====================================================================
+
 
 ALTER TABLE _users ADD COLUMN IF NOT EXISTS google_id         VARCHAR(255);
 CREATE UNIQUE INDEX IF NOT EXISTS _users_google_id_key ON _users (google_id) WHERE google_id IS NOT NULL AND google_id != '';
