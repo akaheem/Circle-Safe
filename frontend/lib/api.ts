@@ -161,7 +161,6 @@ export const MOCK_LOGIN = { email: "amara@example.com", password: DEMO_PASSWORD 
 const MOCK_ME: User = {
   id: MOCK_USER_ID, name: "Amara Okafor", email: "amara@example.com",
   email_verified_at: "2026-05-01T09:00:00Z", role: "ADMIN",
-  email_verified_at: "2026-05-01T09:00:00Z",
 };
 
 const inDays = (days: number) => new Date(Date.now() + days * 86_400_000).toISOString();
