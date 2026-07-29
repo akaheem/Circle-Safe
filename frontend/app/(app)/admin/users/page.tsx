@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { BadgeCheck, Search, ShieldCheck, Users } from "lucide-react";
+import { Search, ShieldCheck, Users } from "lucide-react";
 import { adminListUsers } from "@/lib/api";
 import { useAsync } from "@/lib/useAsync";
 import { formatDate } from "@/lib/format";
@@ -30,8 +30,6 @@ function UsersTable() {
     return (data ?? []).filter((u) => !q || `${u.name} ${u.email}`.toLowerCase().includes(q));
   }, [data, term]);
 
-  const unverified = (data ?? []).filter((u) => !u.phone_verified_at).length;
-
   if (error) return <Alert tone="error">{error}</Alert>;
 
   return (
@@ -52,7 +50,6 @@ function UsersTable() {
             {rows.length === data.length
               ? `${data.length} user${data.length === 1 ? "" : "s"}`
               : `${rows.length} of ${data.length} users`}
-            {unverified > 0 && ` · ${unverified} unverified`}
           </span>
         )}
       </div>
@@ -84,7 +81,6 @@ function UsersTable() {
                 <th className="px-5 py-3 font-semibold">Name</th>
                 <th className="px-5 py-3 font-semibold">Email</th>
                 <th className="px-5 py-3 font-semibold">Role</th>
-                <th className="px-5 py-3 font-semibold">WhatsApp verified</th>
                 <th className="px-5 py-3 text-right font-semibold">Circles</th>
                 <th className="px-5 py-3 font-semibold">Joined</th>
               </tr>
@@ -103,18 +99,6 @@ function UsersTable() {
                       <Badge value="USER" />
                     )}
                   </td>
-                  <td className="px-5 py-3.5">
-                    {u.phone_verified_at ? (
-                      <span
-                        title={formatDate(u.phone_verified_at)}
-                        className="inline-flex items-center gap-1.5 text-xs font-semibold text-primary"
-                      >
-                        <BadgeCheck size={16} /> Verified
-                      </span>
-                    ) : (
-                      <Pill tone="accent">unverified</Pill>
-                    )}
-                  </td>
                   <td className="px-5 py-3.5 text-right text-muted">{u.circles_count}</td>
                   <td className="px-5 py-3.5 text-muted">{formatDate(u.created_at)}</td>
                 </tr>
@@ -126,7 +110,6 @@ function UsersTable() {
 
       <p className="text-xs text-muted">
         Admin rights come from the ADMIN_EMAILS setting, applied when the address signs up.
-        The phone number shown is optional and was previously used for WhatsApp verification.
       </p>
     </div>
   );

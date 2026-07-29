@@ -104,16 +104,14 @@ interface UserRow {
   id: string;
   name: string;
   email: string;
-  phone: string | null;
   email_verified_at: string | null;
-  phone_verified_at: string | null;
   role: string;
   google_id?: string | null;
 }
 
 async function loadUser(userId: string): Promise<UserRow> {
   const rows = await query<UserRow>(
-    `SELECT id, name, email, phone, email_verified_at, phone_verified_at, role FROM _users
+    `SELECT id, name, email, email_verified_at, role FROM _users
      WHERE id = $1 AND deleted_at IS NULL`,
     [userId],
   );
@@ -174,24 +172,11 @@ async function reconcileAdminRole(user: UserRow): Promise<UserRow> {
            THEN COALESCE(email_verified_at, $3::timestamptz) ELSE email_verified_at END,
          updated_at = $3::timestamptz
      WHERE id = $1 AND deleted_at IS NULL
-     RETURNING id, name, email, phone, email_verified_at, phone_verified_at, role`,
+     RETURNING id, name, email, email_verified_at, role`,
     [user.id, role, now()],
   );
   console.log(`[admin] ${user.email}: role ${user.role} -> ${role} (from ADMIN_EMAILS)`);
   return rows[0] ?? user;
-}
-
-/**
- * A user must verify their WhatsApp number before they can create or join circles.
- * Unlike the old email verification, this is ALWAYS enforced — no SMTP gating.
- */
-async function requirePhoneVerified(userId: string): Promise<void> {
-  const user = await loadUser(userId);
-  if (!user.phone_verified_at) {
-    throw forbidden(
-      "Verify your WhatsApp number first — go to your account settings and confirm your phone number",
-    );
-  }
 }
 
 /* --------------------------- circle helpers ------------------------- */
@@ -413,12 +398,10 @@ export const resources: Record<string, ResourceDef> = {
       name: { type: "STRING", min_length: 2, max_length: 255 },
       email: { type: "EMAIL", max_length: 255 },
       password: { type: "STRING", min_length: 8, max_length: 255 },
-      phone: { type: "STRING", max_length: 30, optional: true },
     },
     run: async ({ payload }) => {
       const email = str(payload.email).toLowerCase();
       const name = str(payload.name);
-      const phone = str(payload.phone) || null;
       const id = newId();
       const password = await hashPassword(String(payload.password));
       const timestamp = now();
@@ -431,10 +414,10 @@ export const resources: Record<string, ResourceDef> = {
         user = await withTx(async (client) => {
           const inserted = await client.query(
             `INSERT INTO _users
-               (id, name, email, phone, password, role, email_verified_at, created_at, updated_at)
+               (id, name, email, password, role, email_verified_at, created_at, updated_at)
              VALUES ($1, $2, $3, $4, $5, $6, $7::timestamptz, $8::timestamptz, $8::timestamptz)
-             RETURNING id, name, email, phone, email_verified_at, phone_verified_at, role`,
-            [id, name, email, phone, password, admin ? "ADMIN" : "USER",
+             RETURNING id, name, email, email_verified_at, role`,
+            [id, name, email, password, admin ? "ADMIN" : "USER",
              admin ? timestamp : null, timestamp],
           );
           return inserted.rows[0] as UserRow;
@@ -460,7 +443,7 @@ export const resources: Record<string, ResourceDef> = {
     },
     run: async ({ payload }) => {
       const rows = await query<UserRow & { password: string }>(
-        `SELECT id, name, email, phone, password, email_verified_at, phone_verified_at, role FROM _users
+        `SELECT id, name, email, password, email_verified_at, role FROM _users
          WHERE LOWER(email) = $1 AND deleted_at IS NULL`,
         [str(payload.email).toLowerCase()],
       );
@@ -475,9 +458,7 @@ export const resources: Record<string, ResourceDef> = {
         id: user.id,
         name: user.name,
         email: user.email,
-        phone: user.phone,
         email_verified_at: user.email_verified_at,
-        phone_verified_at: user.phone_verified_at,
         role: user.role,
       });
 
@@ -507,7 +488,7 @@ export const resources: Record<string, ResourceDef> = {
 
       // Look up by google_id first, then by email.
       const existing = await query<UserRow>(
-        `SELECT id, name, email, phone, email_verified_at, phone_verified_at, role FROM _users
+        `SELECT id, name, email, email_verified_at, role FROM _users
          WHERE (google_id = $1 OR LOWER(email) = $2) AND deleted_at IS NULL
          LIMIT 1`,
         [googleId, email.toLowerCase()],
@@ -523,7 +504,7 @@ export const resources: Record<string, ResourceDef> = {
              SET google_id = $2, email_verified_at = COALESCE(email_verified_at, $3::timestamptz),
                  updated_at = $3::timestamptz
              WHERE id = $1 AND deleted_at IS NULL
-             RETURNING id, name, email, phone, email_verified_at, phone_verified_at, role`,
+             RETURNING id, name, email, email_verified_at, role`,
             [user.id, googleId, timestamp],
           );
           user = updated[0] ?? user;
@@ -537,7 +518,7 @@ export const resources: Record<string, ResourceDef> = {
             `INSERT INTO _users
                (id, name, email, google_id, role, email_verified_at, created_at, updated_at)
              VALUES ($1, $2, $3, $4, $5, $6::timestamptz, $7::timestamptz, $7::timestamptz)
-             RETURNING id, name, email, phone, email_verified_at, phone_verified_at, role`,
+             RETURNING id, name, email, email_verified_at, role`,
             [id, name, email.toLowerCase(), googleId,
              adminEmails().includes(email.toLowerCase()) ? "ADMIN" : "USER",
              timestamp, timestamp],
@@ -564,135 +545,6 @@ export const resources: Record<string, ResourceDef> = {
     run: async ({ userId }) => reconcileAdminRole(await loadUser(userId)),
   },
 
-  /* ---------------------------- Phone OTP ----------------------------- */
-
-  "send-phone-otp": {
-    auth: true,
-    rateLimit: { limit: 5, windowSeconds: 120 },
-    spec: {
-      phone: { type: "STRING", min_length: 8, max_length: 30 },
-    },
-    run: async ({ payload, userId }) => {
-      const phone = str(payload.phone);
-      // Check the number is not already verified by another account.
-      const existing = await query<{ id: string }>(
-        `SELECT id FROM _users WHERE phone = $1 AND phone_verified_at IS NOT NULL AND deleted_at IS NULL AND id != $2`,
-        [phone, userId],
-      );
-      if (existing.length) throw conflict("That WhatsApp number is already verified on another account");
-      if (!phone.startsWith("+")) {
-        throw badRequest("Phone number must include the country code, e.g. +234...");
-      }
-
-      const user = await loadUser(userId);
-      const otp = String(Math.floor(100000 + Math.random() * 900000)); // 6-digit
-      const timestamp = now();
-
-      await withTx(async (client) => {
-        // Invalidate any previous unused OTPs for this user.
-        await client.query(
-          `UPDATE _phone_tokens SET used_at = $2::timestamptz
-           WHERE user_id = $1 AND used_at IS NULL`,
-          [userId, timestamp],
-        );
-        // Store the current user's phone so it can be updated too.
-        await client.query(
-          `INSERT INTO _phone_tokens (id, user_id, phone, otp_hash, expires_at, created_at)
-           VALUES ($1, $2, $3, $4, $5::timestamptz, $6::timestamptz)`,
-          [newId(), userId, phone, sha256(otp), inHours(1), timestamp],
-        );
-      });
-
-      // Log the OTP to console (in dev) or integrate with a WhatsApp API here.
-      // To use a real WhatsApp sender, replace this with an external API call.
-      console.log(`\n[WhatsApp OTP] → ${phone} (user ${user.name}, ${user.email})`);
-      console.log(`  Your OTP: ${otp}`);
-      console.log(`  Expires: ${inHours(1)}\n`);
-
-      // If a WhatsApp API env var is set, call it here.
-      if (process.env.WHATSAPP_API_URL) {
-        try {
-          const url = process.env.WHATSAPP_API_URL;
-          const apiKey = process.env.WHATSAPP_API_KEY ?? "";
-          await fetch(url, {
-            method: "POST",
-            headers: { "Content-Type": "application/json", Authorization: `Bearer ${apiKey}` },
-            body: JSON.stringify({ to: phone, message: `Your CircleSafe OTP is: ${otp}. Valid for 1 hour.` }),
-          });
-          console.log(`[WhatsApp OTP] Sent via API to ${phone}`);
-        } catch (err) {
-          console.error(`[WhatsApp OTP] API send failed for ${phone}:`, err);
-        }
-      }
-
-      // Always store the phone on the user profile so it's known.
-      if (user.phone !== phone) {
-        await query(
-          `UPDATE _users SET phone = $2, updated_at = $3::timestamptz WHERE id = $1`,
-          [userId, phone, timestamp],
-        );
-      }
-
-      return {
-        sent: true,
-        message: "OTP sent to your WhatsApp number",
-        // In dev mode (no external WhatsApp API), return the OTP so test suites
-        // can complete the verification flow. Production setups with WHATSAPP_API_URL
-        // configured will handle delivery externally and this field is omitted.
-        ...(process.env.WHATSAPP_API_URL ? {} : { otp }),
-      };
-    },
-  },
-
-  "verify-phone-otp": {
-    auth: true,
-    rateLimit: { limit: 10, windowSeconds: 60 },
-    spec: {
-      phone: { type: "STRING", min_length: 8, max_length: 30 },
-      otp: { type: "STRING", min_length: 6, max_length: 6 },
-    },
-    run: async ({ payload, userId }) => {
-      const phone = str(payload.phone);
-      const otp = str(payload.otp);
-      const timestamp = now();
-
-      const rows = await query<{
-        id: string; user_id: string; phone: string; expires_at: string; used_at: string | null;
-      }>(
-        `SELECT id, user_id, phone, expires_at, used_at FROM _phone_tokens
-         WHERE user_id = $1 AND otp_hash = $2 AND used_at IS NULL
-         ORDER BY created_at DESC LIMIT 1`,
-        [userId, sha256(otp)],
-      );
-      if (!rows.length) throw conflict("Invalid or expired OTP. Request a new one.");
-
-      const token = rows[0];
-      if (new Date(token.expires_at).getTime() <= Date.now()) {
-        throw conflict("That OTP has expired. Request a new one.");
-      }
-      if (token.phone !== phone) {
-        throw conflict("The phone number does not match the OTP request.");
-      }
-
-      await withTx(async (client) => {
-        await client.query(
-          `UPDATE _phone_tokens SET used_at = $2::timestamptz WHERE id = $1`,
-          [token.id, timestamp],
-        );
-        await client.query(
-          `UPDATE _users
-           SET phone = $2, phone_verified_at = COALESCE(phone_verified_at, $3::timestamptz),
-               updated_at = $3::timestamptz
-           WHERE id = $1`,
-          [userId, phone, timestamp],
-        );
-      });
-
-      // Update in-memory caches that may reference this user.
-      return { verified: true, phone };
-    },
-  },
-
   /* ------------------------------ Circles ----------------------------- */
 
   "create-circle": {
@@ -709,7 +561,7 @@ export const resources: Record<string, ResourceDef> = {
       description: { type: "STRING", max_length: 500, optional: true },
     },
     run: async ({ payload, userId }) => {
-      await requirePhoneVerified(userId);
+      // No verification gate
 
       const frequency = str(payload.frequency).toUpperCase();
       if (frequency !== "WEEKLY" && frequency !== "MONTHLY") {
@@ -1169,7 +1021,7 @@ export const resources: Record<string, ResourceDef> = {
         return { ...declined, circle_name: invitation.circle_name };
       }
 
-      await requirePhoneVerified(userId);
+      // No verification gate
       if (invitation.circle_status !== "PENDING") {
         throw conflict("That circle has already started, so the invitation can no longer be taken");
       }
@@ -1290,7 +1142,7 @@ export const resources: Record<string, ResourceDef> = {
     rateLimit: { limit: 10, windowSeconds: 60 },
     spec: { ...CIRCLE_ID, message: { type: "STRING", max_length: 500, optional: true } },
     run: async ({ payload, userId }) => {
-      await requirePhoneVerified(userId);
+      // No verification gate
 
       const circleId = str(payload.circle_id);
       const message = str(payload.message) || null;
@@ -1850,7 +1702,6 @@ export const resources: Record<string, ResourceDef> = {
         `SELECT
            (SELECT COUNT(*)::int FROM _users WHERE deleted_at IS NULL) AS users,
            (SELECT COUNT(*)::int FROM _users
-            WHERE deleted_at IS NULL AND phone_verified_at IS NOT NULL) AS verified_users,
            (SELECT COUNT(*)::int FROM _circles WHERE deleted_at IS NULL) AS circles,
            (SELECT COUNT(*)::int FROM _circles
             WHERE deleted_at IS NULL AND status = 'ACTIVE') AS active_circles,
@@ -1905,7 +1756,7 @@ export const resources: Record<string, ResourceDef> = {
     run: async ({ userId }) => {
       await assertAdmin(userId);
       return query(
-        `SELECT u.id, u.name, u.email, u.phone, u.role, u.phone_verified_at,
+        `SELECT u.id, u.name, u.email, u.role,
                 (SELECT COUNT(*)::int FROM _memberships m
                  WHERE m.user_id = u.id AND m.deleted_at IS NULL) AS circles_count,
                 u.created_at

@@ -12,7 +12,6 @@ export default function RegisterPage() {
   const router = useRouter();
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
-  const [phone, setPhone] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
@@ -30,15 +29,9 @@ export default function RegisterPage() {
       setError("Password must be at least 8 characters.");
       return;
     }
-    // Phone is optional at signup — they can add it later for verification.
-    const cleanPhone = phone.trim() || undefined;
-    if (cleanPhone && !cleanPhone.startsWith("+")) {
-      setError("Phone number must include the country code, e.g. +234...");
-      return;
-    }
     setLoading(true);
     try {
-      const user = await signUp({ name, email, password, phone: cleanPhone });
+      const user = await signUp({ name, email, password });
       setSession(user);
       router.push(invite ? `/invite/${encodeURIComponent(invite)}` : "/dashboard");
     } catch (err) {
@@ -75,12 +68,6 @@ export default function RegisterPage() {
           <input
             type="email" required value={email} onChange={(e) => setEmail(e.target.value)}
             placeholder="you@example.com" className="input" autoComplete="email"
-          />
-        </Field>
-        <Field label="WhatsApp number (optional — add it to verify your account)">
-          <input
-            type="tel" value={phone} onChange={(e) => setPhone(e.target.value)}
-            placeholder="+2348012345678" className="input" autoComplete="tel"
           />
         </Field>
         <Field label="Password">

@@ -17,10 +17,6 @@ export interface User {
   token?: string;
   /** null / undefined until the address is confirmed. */
   email_verified_at?: string | null;
-  /** Phone number (WhatsApp) for OTP verification. */
-  phone?: string | null;
-  /** null / undefined until the WhatsApp number is verified. */
-  phone_verified_at?: string | null;
   role?: AccountRole;
 }
 
@@ -95,7 +91,6 @@ export interface EmailRecord {
 
 export interface AdminOverview {
   users: number;
-  verified_users: number;
   circles: number;
   active_circles: number;
   completed_circles: number;
@@ -131,9 +126,7 @@ export interface AdminUserRow {
   id: string;
   name: string;
   email: string;
-  phone?: string | null;
   role: AccountRole;
-  phone_verified_at?: string | null;
   circles_count: number;
   created_at: string;
 }

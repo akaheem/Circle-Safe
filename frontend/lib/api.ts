@@ -161,7 +161,7 @@ export const MOCK_LOGIN = { email: "amara@example.com", password: DEMO_PASSWORD 
 const MOCK_ME: User = {
   id: MOCK_USER_ID, name: "Amara Okafor", email: "amara@example.com",
   email_verified_at: "2026-05-01T09:00:00Z", role: "ADMIN",
-  phone: "+2348012345677", phone_verified_at: "2026-05-01T09:00:00Z",
+  email_verified_at: "2026-05-01T09:00:00Z",
 };
 
 const inDays = (days: number) => new Date(Date.now() + days * 86_400_000).toISOString();
@@ -200,11 +200,11 @@ const db = {
   ] as Circle[],
 
   users: [
-    { ...MOCK_ME, phone: null, phone_verified_at: null, created_at: "2026-04-20T09:00:00Z" },
-    { id: "u2", name: "John Mensah", email: "john@example.com", role: "USER", email_verified_at: "2026-05-02T09:00:00Z", phone: "+2348012345678", phone_verified_at: "2026-05-02T09:00:00Z", created_at: "2026-05-02T09:00:00Z" },
-    { id: "u3", name: "Sarah Bello", email: "sarah@example.com", role: "USER", email_verified_at: "2026-05-03T09:00:00Z", phone: "+2348012345679", phone_verified_at: "2026-05-03T09:00:00Z", created_at: "2026-05-03T09:00:00Z" },
-    { id: "u4", name: "David Nwosu", email: "david@example.com", role: "USER", email_verified_at: null, phone: null, phone_verified_at: null, created_at: "2026-05-04T09:00:00Z" },
-    { id: "u9", name: "Ngozi Eze", email: "ngozi@example.com", role: "USER", email_verified_at: "2026-06-01T09:00:00Z", phone: "+2348012345680", phone_verified_at: "2026-06-01T09:00:00Z", created_at: "2026-06-01T09:00:00Z" },
+    { ...MOCK_ME, created_at: "2026-04-20T09:00:00Z" },
+    { id: "u2", name: "John Mensah", email: "john@example.com", role: "USER", email_verified_at: "2026-05-02T09:00:00Z", created_at: "2026-05-02T09:00:00Z" },
+    { id: "u3", name: "Sarah Bello", email: "sarah@example.com", role: "USER", email_verified_at: "2026-05-03T09:00:00Z", created_at: "2026-05-03T09:00:00Z" },
+    { id: "u4", name: "David Nwosu", email: "david@example.com", role: "USER", email_verified_at: null, created_at: "2026-05-04T09:00:00Z" },
+    { id: "u9", name: "Ngozi Eze", email: "ngozi@example.com", role: "USER", email_verified_at: "2026-06-01T09:00:00Z", created_at: "2026-06-01T09:00:00Z" },
   ] as (User & { created_at: string })[],
 
   /**
@@ -319,7 +319,7 @@ function currentUser(): User {
     (u) => u.id === session.id || u.email.toLowerCase() === session.email.toLowerCase(),
   );
   if (known) return known;
-  const restored = { ...session, phone: session.phone ?? null, phone_verified_at: session.phone_verified_at ?? null, role: "USER" as const, created_at: now() };
+  const restored = { ...session, role: "USER" as const, created_at: now() };
   db.users.push(restored);
   return restored;
 }
@@ -403,11 +403,11 @@ async function mock<T>(resource: string, payload: Record<string, unknown>): Prom
       if (db.users.some((u) => u.email.toLowerCase() === email)) {
         throw new Error("An account with that email already exists");
       }
-      const phone = (payload.phone as string) || null;
+
       // A new account is a plain USER: only the seeded persona has the admin role.
       const user = {
-        id: nextId("u"), name: (payload.name as string) || "Demo User", email, phone,
-        email_verified_at: null, phone_verified_at: null, role: "USER" as const, created_at: now(),
+        id: nextId("u"), name: (payload.name as string) || "Demo User", email,
+        email_verified_at: null, role: "USER" as const, created_at: now(),
       };
       db.users.push(user);
       db.passwords[email] = String(payload.password ?? "");
@@ -431,7 +431,7 @@ async function mock<T>(resource: string, payload: Record<string, unknown>): Prom
       const email = `google_${nextId("g")}@example.com`;
       const user = {
         id: nextId("u"), name: "Google User", email,
-        phone: null, email_verified_at: null, phone_verified_at: null,
+        email_verified_at: null,
         role: "USER" as const, created_at: now(),
       };
       db.users.push(user);
@@ -834,7 +834,7 @@ async function mock<T>(resource: string, payload: Record<string, unknown>): Prom
       const contributions = Object.values(db.contributions).flat();
       return {
         users: db.users.length,
-        verified_users: db.users.filter((u) => u.phone_verified_at).length,
+
         circles: db.circles.length,
         active_circles: db.circles.filter((c) => c.status === "ACTIVE").length,
         completed_circles: db.circles.filter((c) => c.status === "COMPLETED").length,
@@ -869,9 +869,9 @@ async function mock<T>(resource: string, payload: Record<string, unknown>): Prom
     case "admin-list-users":
       assertAdmin();
       return db.users.map((u) => ({
-        id: u.id, name: u.name, email: u.email, phone: u.phone ?? null,
+        id: u.id, name: u.name, email: u.email,
         role: u.role ?? "USER",
-        phone_verified_at: u.phone_verified_at ?? null,
+
         circles_count: Object.values(db.members).filter((list) =>
           list.some((m) => m.user_id === u.id),
         ).length,

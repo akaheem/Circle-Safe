@@ -37,7 +37,6 @@ function Overview() {
     );
   }
 
-  const unverified = Math.max(0, data.users - data.verified_users);
   const waiting = Math.max(0, data.circles - data.active_circles - data.completed_circles);
 
   return (
@@ -59,7 +58,7 @@ function Overview() {
         <StatCard
           label="Users"
           value={data.users}
-          hint={`${data.verified_users} verified · ${unverified} not yet`}
+          hint="Everyone who has signed up"
           icon={Users}
         />
         <StatCard

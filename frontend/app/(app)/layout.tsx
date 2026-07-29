@@ -7,7 +7,6 @@ import { Compass, Inbox, LayoutDashboard, LogOut, PlusCircle, Shield } from "luc
 import { useSession, clearSession, getToken } from "@/lib/auth";
 import { logout, me } from "@/lib/api";
 import { useAsync } from "@/lib/useAsync";
-import VerifyPhoneBanner from "@/components/VerifyPhoneBanner";
 
 export default function AppLayout({ children }: { children: React.ReactNode }) {
   const { user, ready } = useSession();
@@ -93,7 +92,6 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
       {/* Content */}
       <div className="lg:pl-64">
         <main className="mx-auto max-w-6xl px-6 py-8 md:px-10">
-          <VerifyPhoneBanner className="mb-6" />
           {children}
         </main>
       </div>
