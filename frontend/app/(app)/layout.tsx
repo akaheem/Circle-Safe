@@ -7,6 +7,7 @@ import { Compass, Inbox, LayoutDashboard, LogOut, PlusCircle, Shield } from "luc
 import { useSession, clearSession, getToken } from "@/lib/auth";
 import { logout, me } from "@/lib/api";
 import { useAsync } from "@/lib/useAsync";
+import Logo from "@/components/Logo";
 
 export default function AppLayout({ children }: { children: React.ReactNode }) {
   const { user, ready } = useSession();
@@ -50,7 +51,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
       {/* Sidebar */}
       <aside className="fixed inset-y-0 left-0 hidden w-64 flex-col border-r border-line bg-white lg:flex">
         <div className="flex items-center gap-2.5 px-6 py-6 font-heading text-xl font-bold">
-          <span className="h-7 w-7 rounded-lg bg-gradient-to-br from-primary to-accent" />
+          <Logo className="h-7 w-7" />
           CircleSafe
         </div>
         <nav className="flex-1 space-y-1 px-3">

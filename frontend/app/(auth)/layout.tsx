@@ -1,4 +1,5 @@
 import Link from "next/link";
+import Logo from "@/components/Logo";
 
 export default function AuthLayout({ children }: { children: React.ReactNode }) {
   return (
@@ -9,7 +10,7 @@ export default function AuthLayout({ children }: { children: React.ReactNode }) 
         <div className="pointer-events-none absolute bottom-10 right-0 h-72 w-72 rounded-full bg-accent/20 blur-3xl" />
         <div className="relative flex h-full flex-col justify-between p-12">
           <Link href="/" className="flex items-center gap-2.5 font-heading text-xl font-bold text-white">
-            <span className="h-7 w-7 rounded-lg bg-gradient-to-br from-primary-light to-accent" />
+            <Logo className="h-7 w-7" />
             CircleSafe
           </Link>
           <div>

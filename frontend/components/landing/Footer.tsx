@@ -1,3 +1,5 @@
+import Logo from "@/components/Logo";
+
 // Only links that actually go somewhere — page anchors and routes that exist.
 const cols = [
   {
@@ -25,7 +27,7 @@ export default function Footer() {
         <div className="grid gap-10 md:grid-cols-[1.8fr_1fr_1fr]">
           <div>
             <div className="mb-4 flex items-center gap-2.5 font-heading text-xl font-bold text-white">
-              <span className="h-7 w-7 rounded-lg bg-gradient-to-br from-primary-light to-accent" />
+              <Logo className="h-7 w-7" />
               CircleSafe
             </div>
             <p className="max-w-xs text-sm leading-relaxed text-white/60">

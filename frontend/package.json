@@ -10,6 +10,7 @@
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
+    "icons": "node scripts/gen-icons.mjs",
     "smoke": "node --env-file-if-exists=.env.local scripts/smoke.mjs",
     "db:init": "node --env-file-if-exists=.env.local scripts/db-init.mjs"
   },

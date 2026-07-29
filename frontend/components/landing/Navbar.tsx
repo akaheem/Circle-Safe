@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Logo from "@/components/Logo";
 
 const links = [
   { label: "How it works", href: "#how" },
@@ -27,7 +28,7 @@ export default function Navbar() {
     >
       <nav className="container-x flex items-center justify-between py-5">
         <a href="#" className="flex items-center gap-2.5 font-heading text-xl font-bold text-white">
-          <span className="h-7 w-7 rounded-lg bg-gradient-to-br from-primary-light to-accent" />
+          <Logo className="h-7 w-7" />
           CircleSafe
         </a>
 
