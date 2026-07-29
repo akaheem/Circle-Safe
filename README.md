@@ -185,7 +185,8 @@ Everything below is a Sub0 primitive, not application code we wrote.
   injected `PORT` and bind `0.0.0.0`.
 - **HTTPS/TLS** — terminated by LingoQL on 443, including the `wss://` socket upgrade.
 
-See [`DEPLOYMENT.md`](./DEPLOYMENT.md) for the exact runbook.
+The exact deploy runbook — provisioning, environment secrets, the port binding and the TLS
+upgrade — is kept with the project and available on request.
 
 > **Status note.** The hackathon's LingoQL/Sub0 credits were never issued to us (the credit cut-off
 > turned out to be 21 July 2026 and wasn't announced), so there is no Sub0 instance to point at yet.
@@ -221,10 +222,7 @@ frontend/
   lib/server/        schema, handlers, auth, validation, rate limit, cache (see §11)
   scripts/           db-init + end-to-end smoke test
 frontend-design-reference/   palette exploration + the original Lightfall hero
-PROGRESS.md          full decision log and task tracker
-DEPLOYMENT.md        step-by-step Sub0 + LingoQL deploy runbook
-SELF_HOSTING.md      running the same 23 resources on plain PostgreSQL
-DEMO_SCRIPT.md       shot list for the demo video
+docs/                documentation deck + project description
 ```
 
 ## 9. Run it locally
@@ -270,7 +268,8 @@ npm run smoke      # full lifecycle + authorization tests
 Each Sub0 primitive has a direct counterpart — `payload_validation` → `lib/server/validate.ts`,
 `hashables` → bcrypt, `protected` → verified JWT claims, `depends_on` → one transaction,
 `read_from_cache` → a 60s TTL cache, `broadcast_websocket_message` → SSE. The mapping table, the
-deploy steps, and an honest verification status are in [`SELF_HOSTING.md`](./SELF_HOSTING.md).
+deploy steps, and an honest verification status are documented alongside the runtime itself in
+`frontend/lib/server/`.
 
 Building it also surfaced two gaps in the Sub0 definitions (an uncapped `invite-member`, and cached
 aggregations keyed without the caller) — both fixed in the self-hosted runtime and logged in
