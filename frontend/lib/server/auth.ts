@@ -103,13 +103,18 @@ interface GooglePayload {
 }
 
 export async function verifyGoogleToken(token: string): Promise<GooglePayload> {
-  // Try using google-auth-library if installed.
+  const clientId = process.env.GOOGLE_CLIENT_ID;
+  if (!clientId) {
+    throw new Error(
+      "GOOGLE_CLIENT_ID is not set. Add it to your Vercel environment variables (not NEXT_PUBLIC_).",
+    );
+  }
   try {
     const { OAuth2Client } = await import("google-auth-library");
-    const client = new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
+    const client = new OAuth2Client(clientId);
     const ticket = await client.verifyIdToken({
       idToken: token,
-      audience: process.env.GOOGLE_CLIENT_ID,
+      audience: clientId,
     });
     const payload = ticket.getPayload();
     if (!payload || !payload.sub || !payload.email) {
@@ -122,9 +127,9 @@ export async function verifyGoogleToken(token: string): Promise<GooglePayload> {
       picture: payload.picture,
     };
   } catch {
-    // If google-auth-library is not installed, try manual JWKS verification.
     throw new Error(
-      "Google Sign-In is not configured. Set GOOGLE_CLIENT_ID env var and install google-auth-library.",
+      "Google Sign-In verification failed. Check that GOOGLE_CLIENT_ID is correct " +
+      "and your Vercel domain is added to Authorized JavaScript origins in Google Cloud Console.",
     );
   }
 }
