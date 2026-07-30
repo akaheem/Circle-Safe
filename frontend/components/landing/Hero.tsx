@@ -15,7 +15,7 @@ export default function Hero() {
         colors={colors}
         backgroundColor="#07231B"
         streakCount={3}
-        speed={0.18}
+        speed={0.45}
       />
       {/* readability gradient over the animation */}
       <div className="pointer-events-none absolute inset-0 z-[1] bg-gradient-to-b from-ink/40 via-transparent to-ink/70" />
